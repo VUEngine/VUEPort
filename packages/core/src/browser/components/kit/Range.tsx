@@ -1,0 +1,91 @@
+import React, { PropsWithChildren } from 'react';
+import { clamp } from './Utils';
+import AdvancedSelect, { AdvancedSelectOption } from './AdvancedSelect';
+import { BasicSelectOption } from './BasicSelect';
+import HContainer from './HContainer';
+import Input from './Input';
+import { useKit } from './KitContext';
+
+interface RangeProps {
+    min: number
+    max: number
+    step?: number
+    value: number
+    clearable?: boolean
+    disabled?: boolean
+    options?: BasicSelectOption[]
+    setValue: (value: number) => void
+    width?: string | number
+    selectWidth?: number
+    containerStyle?: object
+}
+
+export default function Range(props: PropsWithChildren<RangeProps>): React.JSX.Element {
+    const { setCommandsEnabled } = useKit();
+    const { min, max, step, value, clearable, disabled, options, setValue, width, selectWidth, containerStyle } = props;
+
+    let inputWidth = 32;
+    if (!Number.isInteger(step)) {
+        inputWidth = 52;
+    } else if (max >= 1000) {
+        inputWidth = 48;
+    } else if (max >= 100) {
+        inputWidth = 40;
+    }
+
+    const onChange = (val: string) => {
+        const v = !val
+            ? min
+            : Number.isInteger(val)
+                ? parseInt(val)
+                : parseFloat(val);
+        setValue(clamp(v, min, max));
+    };
+
+    const handleOnFocus = () => setCommandsEnabled(false);
+
+    const handleOnBlur = () => setCommandsEnabled(true);
+
+    return (
+        <HContainer alignItems="center" style={{ ...(containerStyle ?? {}), width }}>
+            <input
+                type="range"
+                className={`value-${clamp(Math.ceil(100 / (max - min) * ((value ?? max) - min)), 0, 100)}`}
+                style={{ flexGrow: 1 }}
+                min={min}
+                max={max}
+                step={step}
+                value={value ?? max}
+                onChange={e => onChange(e.target.value)}
+                onFocus={handleOnFocus}
+                onBlur={handleOnBlur}
+                disabled={disabled}
+            />
+            {
+                options
+                    ? <AdvancedSelect
+                        options={options.map(o => ({
+                            ...o,
+                            value: o.value?.toString(),
+                        })) as AdvancedSelectOption[]}
+                        defaultValue={value?.toString() ?? max?.toString()}
+                        onChange={opts => onChange(opts[0])}
+                        width={selectWidth}
+                        disabled={disabled}
+                    />
+                    : <Input
+                        type="number"
+                        style={{ minWidth: inputWidth, width: inputWidth }}
+                        value={value ?? max}
+                        setValue={setValue}
+                        min={min}
+                        max={max}
+                        step={step}
+                        clearable={clearable}
+                        disabled={disabled}
+                    />
+            }
+        </HContainer>
+    );
+}
+

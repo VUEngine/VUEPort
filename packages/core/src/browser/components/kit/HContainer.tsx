@@ -1,0 +1,44 @@
+import React, { KeyboardEventHandler, MouseEventHandler, PropsWithChildren } from 'react';
+
+interface HContainerProps {
+    alignItems?: string
+    className?: string
+    gap?: number | string
+    grow?: number
+    justifyContent?: string
+    onClick?: MouseEventHandler;
+    onKeyDown?: KeyboardEventHandler;
+    onMouseOver?: MouseEventHandler;
+    onMouseOut?: MouseEventHandler;
+    overflow?: string
+    style?: object
+    tabIndex?: number
+    wrap?: 'nowrap' | 'wrap' | 'wrap-reverse'
+}
+
+export default function HContainer(props: PropsWithChildren<HContainerProps>): React.JSX.Element {
+    const { alignItems, children, className, justifyContent, onClick, onKeyDown, onMouseOver, onMouseOut, overflow, tabIndex, wrap, gap, grow, style } = props;
+
+    return <div
+        style={{
+            alignItems,
+            display: 'flex',
+            flexDirection: 'row',
+            flexGrow: grow,
+            flexWrap: wrap !== undefined ? wrap : 'nowrap',
+            gap: gap !== undefined ? gap : 5,
+            justifyContent,
+            overflow,
+            ...(style || {}),
+        }}
+        className={className}
+        tabIndex={tabIndex}
+        onClick={e => { if (onClick) { onClick(e); } }}
+        onKeyDown={e => { if (onKeyDown) { onKeyDown(e); } }}
+        onMouseOut={e => { if (onMouseOut) { onMouseOut(e); } }}
+        onMouseOver={e => { if (onMouseOver) { onMouseOver(e); } }}
+    >
+        {children}
+    </div>;
+}
+

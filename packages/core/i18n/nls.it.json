@@ -1,0 +1,55 @@
+{
+    "vueport": {
+        "commands": {
+            "category": "Emulatore"
+        },
+        "configureInput": "Configurare l'ingresso",
+        "controller": {
+            "aCommand": "A",
+            "bCommand": "B",
+            "category": "Emulatore Game Pad",
+            "lDownCommand": "D-Pad sinistro ⇩",
+            "lLeftCommand": "D-Pad sinistro ⇦",
+            "lRightCommand": "D-Pad sinistro ⇨",
+            "lTriggerCommand": "Grilletto sinistro",
+            "lUpCommand": "D-Pad sinistro ⇧",
+            "rDownCommand": "D-Pad destro ⇩",
+            "rLeftCommand": "D-Pad destro ⇦",
+            "rRightCommand": "D-Pad destro ⇨",
+            "rTriggerCommand": "Grilletto destro",
+            "rUpCommand": "D-Pad destro ⇧",
+            "selectCommand": "Selezionare",
+            "startCommand": "Inizio"
+        },
+        "currentSaveState": "Stato di salvataggio corrente",
+        "input": {
+            "audioMuteCommand": "Audio Mute",
+            "frameAdvanceCommand": "Avanzamento del telaio",
+            "fullscreenCommand": "Schermo intero",
+            "loadStateCommand": "Stato di carico",
+            "pauseToggleCommand": "Alterna la pausa",
+            "resetCommand": "Reset",
+            "rewindCommand": "Riavvolgimento",
+            "saveStateCommand": "Salva lo Stato",
+            "screenshotCommand": "Scatto della schermata",
+            "stateSlotDecreaseCommand": "Diminuire lo slot di salvataggio dello Stato",
+            "stateSlotIncreaseCommand": "Aumentare lo slot di salvataggio dello Stato",
+            "toggleControlsOverlayCommand": "Sovrapposizione dei controlli",
+            "toggleFastForwardCommand": "Alterna l'avanzamento veloce",
+            "toggleLowPower": "Segnale a bassa potenza",
+            "toggleSlowmotionCommand": "Alterna il rallentatore"
+        },
+        "mute": "Muto",
+        "pause": "Pausa",
+        "preferences": {
+            "builtInScalingModeDescription": "Modalità di ridimensionamento dell'emulatore integrato."
+        },
+        "resume": "Il curriculum",
+        "scale": "Scale",
+        "scales": {
+            "auto": "Auto",
+            "stretch": "Stretch"
+        },
+        "unmute": "Disattivare l'audio"
+    }
+}

@@ -1,0 +1,55 @@
+{
+    "vueport": {
+        "commands": {
+            "category": "Emulador"
+        },
+        "configureInput": "Configurar la entrada",
+        "controller": {
+            "aCommand": "A",
+            "bCommand": "B",
+            "category": "Emulador Game Pad",
+            "lDownCommand": "Control D izquierdo ⇩",
+            "lLeftCommand": "Control D izquierdo ⇦",
+            "lRightCommand": "Control D izquierdo ⇨",
+            "lTriggerCommand": "Gatillo izquierdo",
+            "lUpCommand": "Control D izquierdo ⇧",
+            "rDownCommand": "Control D derecho ⇩",
+            "rLeftCommand": "Control D derecho ⇦",
+            "rRightCommand": "Control D derecho ⇨",
+            "rTriggerCommand": "Gatillo derecho",
+            "rUpCommand": "Control D derecho ⇧",
+            "selectCommand": "Seleccione",
+            "startCommand": "Inicie"
+        },
+        "currentSaveState": "Estado actual del ahorro",
+        "input": {
+            "audioMuteCommand": "Silenciar el audio",
+            "frameAdvanceCommand": "Avance del marco",
+            "fullscreenCommand": "Pantalla completa",
+            "loadStateCommand": "Estado de carga",
+            "pauseToggleCommand": "Alternar Pausa",
+            "resetCommand": "Reiniciar",
+            "rewindCommand": "Rebobinar",
+            "saveStateCommand": "Salvar el Estado",
+            "screenshotCommand": "Hacer una captura de pantalla",
+            "stateSlotDecreaseCommand": "Disminución de la ranura de ahorro del Estado",
+            "stateSlotIncreaseCommand": "Aumentar la ranura del estado de guardado",
+            "toggleControlsOverlayCommand": "Superposición de controles de alternancia",
+            "toggleFastForwardCommand": "Alternar el avance rápido",
+            "toggleLowPower": "Conmutar la señal de baja potencia",
+            "toggleSlowmotionCommand": "Activar la cámara lenta"
+        },
+        "mute": "Silencio",
+        "pause": "Pausa",
+        "preferences": {
+            "builtInScalingModeDescription": "Modo de escalado del emulador incorporado."
+        },
+        "resume": "Curriculum vitae",
+        "scale": "Escaleras",
+        "scales": {
+            "auto": "Coche",
+            "stretch": "Estirar"
+        },
+        "unmute": "Desactivar"
+    }
+}

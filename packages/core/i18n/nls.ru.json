@@ -1,0 +1,55 @@
+{
+    "vueport": {
+        "commands": {
+            "category": "Эмулятор"
+        },
+        "configureInput": "Настроить вход",
+        "controller": {
+            "aCommand": "A",
+            "bCommand": "B",
+            "category": "Эмулятор Game Pad",
+            "lDownCommand": "Левый D-Pad ⇩",
+            "lLeftCommand": "Левый D-Pad ⇦",
+            "lRightCommand": "Левый D-Pad ⇨",
+            "lTriggerCommand": "Левый триггер",
+            "lUpCommand": "Левый D-Pad ⇧",
+            "rDownCommand": "Правый D-Pad ⇩",
+            "rLeftCommand": "Правый D-Pad ⇦",
+            "rRightCommand": "Правый D-Pad ⇨",
+            "rTriggerCommand": "Правый триггер",
+            "rUpCommand": "Правый D-Pad ⇧",
+            "selectCommand": "Выберите",
+            "startCommand": "Начало"
+        },
+        "currentSaveState": "Текущее состояние сохранения",
+        "input": {
+            "audioMuteCommand": "Отключение звука",
+            "frameAdvanceCommand": "Продвижение рамы",
+            "fullscreenCommand": "Полный экран",
+            "loadStateCommand": "Состояние нагрузки",
+            "pauseToggleCommand": "Переключение паузы",
+            "resetCommand": "Сброс",
+            "rewindCommand": "Перемотка",
+            "saveStateCommand": "Сохранить государство",
+            "screenshotCommand": "Сделать скриншот",
+            "stateSlotDecreaseCommand": "Уменьшение Сохранить состояние слота",
+            "stateSlotIncreaseCommand": "Увеличить слот для сохранения состояния",
+            "toggleControlsOverlayCommand": "Переключение наложения элементов управления",
+            "toggleFastForwardCommand": "Переключение перемотки вперед",
+            "toggleLowPower": "Переключение сигнала низкого энергопотребления",
+            "toggleSlowmotionCommand": "Переключить режим замедленного движения"
+        },
+        "mute": "Отключить звук",
+        "pause": "Пауза",
+        "preferences": {
+            "builtInScalingModeDescription": "Режим масштабирования встроенного эмулятора."
+        },
+        "resume": "Резюме",
+        "scale": "Лестницы",
+        "scales": {
+            "auto": "Автомобиль",
+            "stretch": "Растяжка"
+        },
+        "unmute": "Отключить"
+    }
+}

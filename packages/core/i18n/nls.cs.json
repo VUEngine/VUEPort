@@ -1,0 +1,55 @@
+{
+    "vueport": {
+        "commands": {
+            "category": "Emulátor"
+        },
+        "configureInput": "Konfigurace vstupu",
+        "controller": {
+            "aCommand": "A",
+            "bCommand": "B",
+            "category": "Herní podložka emulátoru",
+            "lDownCommand": "Levý D-Pad ⇩",
+            "lLeftCommand": "Levý D-Pad ⇦",
+            "lRightCommand": "Levý D-Pad ⇨",
+            "lTriggerCommand": "Levá spoušť",
+            "lUpCommand": "Levý D-Pad ⇧",
+            "rDownCommand": "Pravý D-Pad ⇩",
+            "rLeftCommand": "Pravý D-Pad ⇦",
+            "rRightCommand": "Pravý D-Pad ⇨",
+            "rTriggerCommand": "Pravá spoušť",
+            "rUpCommand": "Pravý D-Pad ⇧",
+            "selectCommand": "Vyberte",
+            "startCommand": "Start"
+        },
+        "currentSaveState": "Aktuální stav uložení",
+        "input": {
+            "audioMuteCommand": "Ztlumení zvuku",
+            "frameAdvanceCommand": "Předstih rámu",
+            "fullscreenCommand": "Celá obrazovka",
+            "loadStateCommand": "Stav zatížení",
+            "pauseToggleCommand": "Přepínání pauzy",
+            "resetCommand": "Obnovení",
+            "rewindCommand": "Přetáčení",
+            "saveStateCommand": "Uložit stát",
+            "screenshotCommand": "Pořízení snímku obrazovky",
+            "stateSlotDecreaseCommand": "Snížení Slot Save State",
+            "stateSlotIncreaseCommand": "Zvýšení slotu Save State",
+            "toggleControlsOverlayCommand": "Překrytí přepínacích prvků",
+            "toggleFastForwardCommand": "Přepínání Rychlý posun vpřed",
+            "toggleLowPower": "Přepínání signálu nízkého výkonu",
+            "toggleSlowmotionCommand": "Přepínání zpomaleného pohybu"
+        },
+        "mute": "Ztlumit",
+        "pause": "Pauza",
+        "preferences": {
+            "builtInScalingModeDescription": "Režim škálování vestavěného emulátoru."
+        },
+        "resume": "Životopis",
+        "scale": "Schody",
+        "scales": {
+            "auto": "Auto",
+            "stretch": "Stretch"
+        },
+        "unmute": "Zrušit ztlumení"
+    }
+}

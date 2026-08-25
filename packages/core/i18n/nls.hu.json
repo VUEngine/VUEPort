@@ -1,0 +1,55 @@
+{
+    "vueport": {
+        "commands": {
+            "category": "Emulátor"
+        },
+        "configureInput": "Bemenet konfigurálása",
+        "controller": {
+            "aCommand": "A",
+            "bCommand": "B",
+            "category": "Emulátor Game Pad",
+            "lDownCommand": "Bal D-Pad ⇩",
+            "lLeftCommand": "Bal D-Pad ⇦",
+            "lRightCommand": "Bal D-Pad ⇨",
+            "lTriggerCommand": "Bal ravasz",
+            "lUpCommand": "Bal D-Pad ⇧",
+            "rDownCommand": "Jobb D-Pad ⇩",
+            "rLeftCommand": "Jobb D-Pad ⇦",
+            "rRightCommand": "Jobb D-Pad ⇨",
+            "rTriggerCommand": "Jobb ravasz",
+            "rUpCommand": "Jobb D-Pad ⇧",
+            "selectCommand": "Válassza ki a  címet.",
+            "startCommand": "Indítsa el a  oldalt."
+        },
+        "currentSaveState": "Jelenlegi mentési állapot",
+        "input": {
+            "audioMuteCommand": "Audio némítás",
+            "frameAdvanceCommand": "Frame Advance",
+            "fullscreenCommand": "Teljes képernyő",
+            "loadStateCommand": "Terhelési állapot",
+            "pauseToggleCommand": "Szünet kapcsolása",
+            "resetCommand": "Reset",
+            "rewindCommand": "Visszatekerés",
+            "saveStateCommand": "Állam mentése",
+            "screenshotCommand": "Képernyőkép készítése",
+            "stateSlotDecreaseCommand": "Csökkentse Save State Slot",
+            "stateSlotIncreaseCommand": "Állapot mentésének növelése Slot",
+            "toggleControlsOverlayCommand": "Vezérlőelemek átkapcsolása Overlay",
+            "toggleFastForwardCommand": "Gyors előre kapcsolás",
+            "toggleLowPower": "Alacsony teljesítményű jel átkapcsolása",
+            "toggleSlowmotionCommand": "Lassított felvétel bekapcsolása"
+        },
+        "mute": "Mute",
+        "pause": "Szünet",
+        "preferences": {
+            "builtInScalingModeDescription": "A beépített emulátor méretezési módja."
+        },
+        "resume": "Önéletrajz",
+        "scale": "Lépcsők",
+        "scales": {
+            "auto": "Autó",
+            "stretch": "Stretch"
+        },
+        "unmute": "Unmute"
+    }
+}

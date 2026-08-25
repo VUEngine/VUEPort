@@ -1,0 +1,40 @@
+{
+  "name": "vueport-core",
+  "version": "1.0.0",
+  "description": "A Virtual Boy emulator",
+  "license": "MIT",
+  "author": "KR155E <c.radke@posteo.de>",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "src",
+    "i18n",
+    "wasm"
+  ],
+  "dependencies": {
+    "@lumino/dragdrop": "^2.1.8",
+    "@lumino/messaging": "^2.0.4",
+    "@lumino/widgets": "2.7.5",
+    "@phosphor-icons/react": "2.0.15",
+    "chroma-js": "^3.1.2",
+    "lodash": "^4.17.21",
+    "perfect-scrollbar": "1.5.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.2.0",
+    "react-select": "^5.8.0",
+    "styled-components": "^6.1.13"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rimraf lib *.tsbuildinfo",
+    "lint": "eslint --ext ts,tsx src",
+    "lint:fix": "eslint --ext ts,tsx src --fix",
+    "prepare": "yarn clean && yarn build",
+    "test": "node tests/save-state-probe.mjs && node tests/nls-probe.mjs && node tests/rumble-effects-probe.mjs && node tests/cheat-file-probe.mjs && node tests/cheat-database-probe.mjs",
+    "watch": "tsc -w"
+  }
+}

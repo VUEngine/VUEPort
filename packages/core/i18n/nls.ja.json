@@ -1,0 +1,55 @@
+{
+    "vueport": {
+        "commands": {
+            "category": "エミュレータ"
+        },
+        "configureInput": "入力の設定",
+        "controller": {
+            "aCommand": "A",
+            "bCommand": "B",
+            "category": "エミュレーター・ゲームパッド",
+            "lDownCommand": "左D-Pad ⇩ 左D-Pad ⇩ 右D-Pad",
+            "lLeftCommand": "左D-Pad ⇦ 左D-Pad ⇦ 右D-Pad",
+            "lRightCommand": "左D-Pad ⇨ 右D-Pad",
+            "lTriggerCommand": "左トリガー",
+            "lUpCommand": "左D-Pad ⇧。",
+            "rDownCommand": "右D-Pad ⇩ 左D-Pad ⇩右D-Pad",
+            "rLeftCommand": "右D-Pad ⇦ 右D-Pad ⇦右D-Pad",
+            "rRightCommand": "右D-Pad ⇨ 右D-Pad",
+            "rTriggerCommand": "右トリガー",
+            "rUpCommand": "右D-Pad ⇧。",
+            "selectCommand": "選択",
+            "startCommand": "スタート"
+        },
+        "currentSaveState": "現在の保存状態",
+        "input": {
+            "audioMuteCommand": "オーディオミュート",
+            "frameAdvanceCommand": "フレームアドバンス",
+            "fullscreenCommand": "フルスクリーン",
+            "loadStateCommand": "負荷状態",
+            "pauseToggleCommand": "トグルポーズ",
+            "resetCommand": "リセット",
+            "rewindCommand": "巻き戻し",
+            "saveStateCommand": "セーブステート",
+            "screenshotCommand": "スクリーンショットを撮る",
+            "stateSlotDecreaseCommand": "セーブ状態スロットの減少",
+            "stateSlotIncreaseCommand": "保存状態スロットの増加",
+            "toggleControlsOverlayCommand": "トグルコントロールオーバーレイ",
+            "toggleFastForwardCommand": "トグル早送り",
+            "toggleLowPower": "トグル式低電力信号",
+            "toggleSlowmotionCommand": "トグルスローモーション"
+        },
+        "mute": "ミュート",
+        "pause": "ポーズ",
+        "preferences": {
+            "builtInScalingModeDescription": "内蔵エミュレータのスケーリングモード。"
+        },
+        "resume": "レジュメ",
+        "scale": "階段",
+        "scales": {
+            "auto": "車",
+            "stretch": "ストレッチ"
+        },
+        "unmute": "アンミュート"
+    }
+}

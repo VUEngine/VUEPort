@@ -1,0 +1,55 @@
+{
+    "vueport": {
+        "commands": {
+            "category": "Emulador"
+        },
+        "configureInput": "Configurar Entrada",
+        "controller": {
+            "aCommand": "A",
+            "bCommand": "B",
+            "category": "Game Pad emulador",
+            "lDownCommand": "Left D-Pad ⇩",
+            "lLeftCommand": "Left D-Pad ⇦",
+            "lRightCommand": "Left D-Pad ⇨",
+            "lTriggerCommand": "Gatilho esquerdo",
+            "lUpCommand": "Left D-Pad ⇧",
+            "rDownCommand": "D-Pad direito ⇩",
+            "rLeftCommand": "Direita D-Pad ⇦",
+            "rRightCommand": "D-Pad Direito ⇨",
+            "rTriggerCommand": "Gatilho direito",
+            "rUpCommand": "D-Pad direito ⇧",
+            "selectCommand": "Seleccione",
+            "startCommand": "Início"
+        },
+        "currentSaveState": "Estado actual de Save State",
+        "input": {
+            "audioMuteCommand": "Silencioso de Áudio",
+            "frameAdvanceCommand": "Avanço da moldura",
+            "fullscreenCommand": "Ecrã completo",
+            "loadStateCommand": "Estado de Carga",
+            "pauseToggleCommand": "Pausa de Alternância",
+            "resetCommand": "Reinicialização",
+            "rewindCommand": "Rebobinar",
+            "saveStateCommand": "Salvar Estado",
+            "screenshotCommand": "Tirar foto do ecrã",
+            "stateSlotDecreaseCommand": "Diminuir Slot Save State",
+            "stateSlotIncreaseCommand": "Aumentar Save State Slot",
+            "toggleControlsOverlayCommand": "Sobreposição dos controlos de alternância",
+            "toggleFastForwardCommand": "Alternar para a frente rapidamente",
+            "toggleLowPower": "Alternar sinal de baixa potência",
+            "toggleSlowmotionCommand": "Alternar movimento lento"
+        },
+        "mute": "Mudo",
+        "pause": "Pausa",
+        "preferences": {
+            "builtInScalingModeDescription": "Modo de escalonamento do emulador incorporado."
+        },
+        "resume": "Currículo",
+        "scale": "Escadas",
+        "scales": {
+            "auto": "Automóvel",
+            "stretch": "Esticar"
+        },
+        "unmute": "Inútil"
+    }
+}

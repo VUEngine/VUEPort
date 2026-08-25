@@ -1,0 +1,55 @@
+{
+    "vueport": {
+        "commands": {
+            "category": "Emulator"
+        },
+        "configureInput": "Konfiguruj wejście",
+        "controller": {
+            "aCommand": "A",
+            "bCommand": "B",
+            "category": "Emulator Game Pad",
+            "lDownCommand": "Lewy D-Pad ⇩",
+            "lLeftCommand": "Lewy przycisk D-Pad ⇦",
+            "lRightCommand": "Lewy D-Pad ⇨",
+            "lTriggerCommand": "Lewy spust",
+            "lUpCommand": "Lewy D-Pad ⇧",
+            "rDownCommand": "Prawy D-Pad ⇩",
+            "rLeftCommand": "Prawy D-Pad ⇦",
+            "rRightCommand": "Prawy D-Pad ⇨",
+            "rTriggerCommand": "Prawy spust",
+            "rUpCommand": "Prawy D-Pad ⇧",
+            "selectCommand": "Wybierz stronę",
+            "startCommand": "Start"
+        },
+        "currentSaveState": "Aktualny stan zapisu",
+        "input": {
+            "audioMuteCommand": "Wyciszanie dźwięku",
+            "frameAdvanceCommand": "Zaawansowanie ramy",
+            "fullscreenCommand": "Fullscreen",
+            "loadStateCommand": "Stan obciążenia",
+            "pauseToggleCommand": "Przełącz Pauza",
+            "resetCommand": "Resetuj",
+            "rewindCommand": "Przewiń do tyłu",
+            "saveStateCommand": "Ocalić państwo",
+            "screenshotCommand": "Zrób zrzut ekranu",
+            "stateSlotDecreaseCommand": "Zmniejszanie Zapisywanie stanu gniazda",
+            "stateSlotIncreaseCommand": "Zwiększanie szczeliny zapisywania stanu",
+            "toggleControlsOverlayCommand": "Przełączanie nakładki elementów sterujących",
+            "toggleFastForwardCommand": "Przełączanie Szybkie przewijanie do przodu",
+            "toggleLowPower": "Przełączanie sygnału niskiego poboru mocy",
+            "toggleSlowmotionCommand": "Przełącz Wolny ruch"
+        },
+        "mute": "Wycisz",
+        "pause": "Pauza",
+        "preferences": {
+            "builtInScalingModeDescription": "Tryb skalowania wbudowanego emulatora."
+        },
+        "resume": "CV",
+        "scale": "Schody",
+        "scales": {
+            "auto": "Samochód",
+            "stretch": "Stretch"
+        },
+        "unmute": "Unmute"
+    }
+}

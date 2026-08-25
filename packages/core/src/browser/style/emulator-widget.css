@@ -1,0 +1,1133 @@
+.vueport-widget {
+  container: emulator / inline-size;
+  display: flex;
+  flex-direction: column;
+  outline: none !important;
+  position: relative;
+}
+
+/* The dock is attached into this by the Emulator component rather than
+   rendered, so the container is what the flex layout sees. */
+.vueport-dock-host {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.vueport-dock {
+  flex: 1 1 auto;
+  /* Without this a flex item refuses to shrink below its content's size,
+     which would stop the dock from ever giving space back to the toolbar. */
+  min-height: 0;
+}
+
+/* Play mode always leaves the screen as the dock's only content (see
+   showScreenOnly), so its tab bar would show a single, unclosable "Screen"
+   tab and nothing else — pointless chrome, hidden entirely instead. */
+.vueport-dock.vueport-dock-play-mode .lm-TabBar {
+  display: none;
+}
+
+/* A dropdown's options are drawn inside the toolbar, so they need to be able
+   to reach past its bottom edge. Lumino sets overflow on widget nodes itself,
+   which is what has to be overridden here. */
+.vueport-toolbar {
+  overflow: visible !important;
+}
+
+.vueport-overlay {
+  bottom: 0;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 10;
+}
+
+.vueport-overlay > * {
+  pointer-events: auto;
+}
+
+.vueport-widget .lm-TabBar {
+  background: var(--theia-editorGroupHeader-tabsBackground);
+  border-top: var(--theia-border-width) solid var(--theia-editorGroup-border);
+}
+
+/*
+ * Tabs scroll rather than being clipped once there are more than fit.
+ *
+ * The scrollbar is perfect-scrollbar's, attached by VesEmulatorTabBar to the
+ * container around the tabs — which is what the shell's own tab bars use: a
+ * rail drawn over the tabs rather than taking a strip of the row, appearing on
+ * hover and fading out again. `position: relative` is what it positions that
+ * rail against; the `overflow-x` is only what happens if the library is not
+ * attached, since its own class sets `overflow: hidden` once it is.
+ */
+.vueport-widget .lm-TabBar-content-container {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  position: relative;
+}
+
+.vueport-widget .lm-TabBar-content {
+  width: 100%;
+}
+
+/* The same rail the shell's tab bars get, sized from the same variables. */
+.vueport-widget .lm-TabBar-content-container > .ps__rail-x {
+  background: transparent !important;
+  height: var(--theia-private-horizontal-tab-scrollbar-rail-height, 7px) !important;
+  z-index: 1000;
+}
+
+.vueport-widget .lm-TabBar-content-container > .ps__rail-x > .ps__thumb-x {
+  bottom: calc((var(--theia-private-horizontal-tab-scrollbar-rail-height, 7px)
+    - var(--theia-private-horizontal-tab-scrollbar-height, 5px)) / 2);
+  height: var(--theia-private-horizontal-tab-scrollbar-height, 5px) !important;
+}
+
+/* A tab keeps its width when the row overflows, rather than being squeezed. */
+.vueport-widget .lm-TabBar-content > .lm-TabBar-tab {
+  flex: none;
+}
+
+/* Outside the scrolling row, so it stays reachable however many tabs there are. */
+.vueport-widget .lm-TabBar-addButton {
+  z-index: 1;
+}
+
+.vueport-widget .lm-TabBar-content .lm-TabBar-tab {
+  border-top: var(--theia-border-width) solid var(--theia-editorGroup-border) !important;
+}
+
+.vueport-widget .lm-DockPanel-handle[data-orientation=horizontal] {
+  border-top: var(--theia-border-width) solid var(--theia-editorGroup-border);
+}
+
+.vueport-widget .lm-TabBar-tab > .lm-TabBar-tabIcon {
+  display: none;
+}
+
+/*
+ * The close ("X") icon on a closable tab.
+ *
+ * Lumino's own renderer emits an empty <div class="lm-TabBar-tabCloseIcon">
+ * with no glyph of any kind — the actual "X" is drawn by CSS, and Theia's own
+ * version of that CSS is scoped to .theia-app-centers / .theia-app-sides, a
+ * class Theia's shell puts on its own tab bars. This dock is a plain Lumino
+ * DockPanel outside that shell, so its tab bars never get that class and the
+ * icon area rendered as an empty, invisible box. This mirrors just the
+ * essential rules — same codicon glyph, same show-on-hover-or-current
+ * behaviour as the rest of the app — scoped to this widget instead.
+ */
+.vueport-widget .lm-TabBar-tab.lm-mod-closable > .lm-TabBar-tabCloseIcon {
+  visibility: hidden;
+  height: var(--theia-icon-size);
+  width: var(--theia-icon-size);
+  margin-left: 4px;
+  padding: 2px;
+  font: normal normal normal 16px/1 codicon;
+  text-align: center;
+  user-select: none;
+}
+
+.vueport-widget .lm-TabBar-tab.lm-mod-current > .lm-TabBar-tabCloseIcon,
+.vueport-widget .lm-TabBar-tab:hover.lm-mod-closable > .lm-TabBar-tabCloseIcon {
+  visibility: visible;
+}
+
+.vueport-widget .lm-TabBar-tab.lm-mod-closable > .lm-TabBar-tabCloseIcon::before {
+  content: "\ea76";
+}
+
+.vueport-widget .lm-TabBar-tab.lm-mod-closable > .lm-TabBar-tabCloseIcon:hover {
+  background-color: rgba(50%, 50%, 50%, 0.2);
+  border-radius: 5px;
+}
+
+/*
+ * Add Emulator Panel, on every tab group rather than on the widget's toolbar,
+ * so that what a group's "+" adds lands in that group. This is Lumino's own
+ * add button (see the dock's `addButtonEnabled`), which it renders as an empty
+ * div — the glyph is left to CSS, exactly like the close icon above.
+ */
+.vueport-widget .lm-TabBar-addButton {
+  align-items: center;
+  align-self: center;
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  font: normal normal normal 16px/1 codicon;
+  height: var(--theia-icon-size);
+  justify-content: center;
+  margin: 0 6px;
+  opacity: 0.6;
+  user-select: none;
+  width: var(--theia-icon-size);
+}
+
+.vueport-widget .lm-TabBar-addButton::before {
+  content: "\ea60";
+}
+
+.vueport-widget .lm-TabBar-addButton:hover {
+  background-color: rgba(50%, 50%, 50%, 0.2);
+  border-radius: 5px;
+  opacity: 1;
+}
+
+
+/* --- Screen ------------------------------------------------------------- */
+
+.vueport-screen-panel {
+  background: rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.vueport-screen-frame {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+}
+
+/* Sits exactly over the picture rather than beside it in the flex row, and
+   never takes a click — the canvas below it is what the emulator listens on.
+   Unlike the picture it is drawn at the size it is shown at, so it wants the
+   normal smoothing rather than the nearest-neighbour scaling above, which
+   would turn its hairlines into staircases. */
+.vueport-screen-overlay {
+  image-rendering: auto;
+  pointer-events: none;
+  position: absolute;
+}
+
+.vueport-screen-frame canvas {
+  border: none;
+  image-rendering: pixelated;
+}
+
+/* --- Debug panels ------------------------------------------------------- */
+
+.vueport-panel {
+  font-size: var(--theia-code-font-size);
+  overflow: auto !important;
+  padding: calc(var(--theia-ui-padding) * 2);
+}
+
+.vueport-panel code {
+  font-family: var(--theia-code-font-family);
+}
+
+/*
+ * A toolbar button for a feature that is switched off. It reads as disabled but
+ * still takes clicks, because clicking it is how the feature gets switched on.
+ */
+.vueport-button-off:not(:disabled) {
+  opacity: 0.5;
+}
+
+.vueport-panel-empty {
+  opacity: 0.5;
+  padding: calc(var(--theia-ui-padding) * 2);
+  text-align: center;
+}
+
+.vueport-panel-toolbar,
+.vueport-memory-toolbar {
+  align-items: center;
+  display: flex;
+  gap: var(--theia-ui-padding);
+  padding-bottom: var(--theia-ui-padding);
+}
+
+.vueport-panel-toolbar label {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.vueport-memory-toolbar input {
+  font-family: var(--theia-code-font-family);
+  width: 10ch;
+}
+
+.vueport-memory-toolbar button {
+  align-items: center;
+  display: flex;
+  height: 26px;
+  margin-left: 0;
+  min-width: unset;
+  padding: 0 9px;
+}
+
+/* --- Registers ---------------------------------------------------------- */
+
+.vueport-registers-panel {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--theia-ui-padding) * 2);
+}
+
+.vueport-registers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--theia-ui-padding) * 2);
+}
+
+.vueport-registers-pc {
+  align-items: center;
+  display: flex;
+  gap: var(--theia-ui-padding);
+  width: 100%;
+}
+
+.vueport-registers th,
+.vueport-vip th,
+.vueport-rom-info th {
+  opacity: 0.7;
+  padding-right: var(--theia-ui-padding);
+  text-align: left;
+  font-weight: normal;
+}
+
+/* --- ROM Info ------------------------------------------------------------ */
+
+.vueport-rom-info td {
+  font-family: var(--theia-code-font-family);
+}
+
+/* --- Memory ------------------------------------------------------------- */
+
+.vueport-memory-rows {
+  font-family: var(--theia-code-font-family);
+  white-space: pre;
+}
+
+.vueport-memory-row {
+  display: flex;
+  gap: calc(var(--theia-ui-padding) * 2);
+}
+
+.vueport-memory-row .address {
+  opacity: 0.7;
+}
+
+.vueport-memory-row .ascii {
+  opacity: 0.85;
+}
+
+/* --- Memory Pools ------------------------------------------------------- */
+
+.vueport-memory-pools {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--theia-ui-padding) * 2);
+  height: 100%;
+  overflow: hidden;
+}
+
+.vueport-memory-pools .hint {
+  opacity: 0.5;
+}
+
+.vueport-memory-pools-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--theia-ui-padding);
+}
+
+.vueport-memory-pools-total {
+  align-items: baseline;
+  display: flex;
+  gap: var(--theia-ui-padding);
+}
+
+.vueport-memory-pools-total strong {
+  font-size: 160%;
+}
+
+.vueport-memory-pools-group {
+  border: var(--theia-border-width) solid var(--theia-editorGroup-border);
+  border-radius: 2px;
+  min-width: 0;
+  padding: calc(var(--theia-ui-padding) * 2);
+}
+
+.vueport-memory-pools-group legend {
+  opacity: 0.7;
+  padding: 0 4px;
+}
+
+.vueport-memory-pools-occupants {
+  flex-grow: 1;
+  overflow: auto;
+}
+
+.vueport-memory-pools-table {
+  border-collapse: collapse;
+}
+
+.vueport-memory-pools-total .vueport-memory-pools-table,
+.vueport-memory-pools-table-spacer {
+  width: 100%;
+}
+
+.vueport-memory-pools-table th {
+  font-weight: normal;
+  opacity: 0.7;
+}
+
+.vueport-memory-pools-table th,
+.vueport-memory-pools-table td {
+  padding-right: calc(var(--theia-ui-padding) * 2);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.vueport-memory-pools-usage {
+  min-width: 80px;
+  width: 100%;
+}
+
+td.vueport-memory-pools-name,
+th.vueport-memory-pools-name,
+td.vueport-memory-pools-usage,
+th.vueport-memory-pools-usage {
+  text-align: left;
+}
+
+.vueport-memory-pools-number {
+  font-family: var(--theia-code-font-family);
+}
+
+/* Inside the cell rather than on it: a table cell laid out as a flex container
+   is no longer a table cell, and stops lining up with its column. */
+.vueport-memory-pools-usage > div {
+  align-items: center;
+  display: flex;
+  gap: var(--theia-ui-padding);
+}
+
+.vueport-memory-pools-percent {
+  font-family: var(--theia-code-font-family);
+  min-width: 4ch;
+  text-align: right;
+}
+
+.vueport-memory-pools-bar {
+  background-color: var(--theia-editorWidget-border);
+  flex-grow: 1;
+  height: 8px;
+  overflow: hidden;
+}
+
+.vueport-memory-pools-bar > div {
+  background-color: var(--theia-progressBar-background);
+  height: 100%;
+}
+
+/* A pool near its limit, and the overflow count that says one passed it. The
+   engine treats both as something to act on before it runs out. */
+.vueport-memory-pools-warn {
+  color: var(--theia-editorWarning-foreground);
+}
+
+.vueport-memory-pools-bar > div.vueport-memory-pools-warn {
+  background-color: var(--theia-editorWarning-foreground);
+}
+
+.vueport-memory-pools-note {
+  margin-top: var(--theia-ui-padding);
+  white-space: normal;
+}
+
+/* --- Disassembly -------------------------------------------------------- */
+
+.vueport-disassembly-lines {
+  font-family: var(--theia-code-font-family);
+  white-space: pre;
+}
+
+.vueport-disassembly-line {
+  display: flex;
+  gap: var(--theia-ui-padding);
+}
+
+.vueport-disassembly-line.current {
+  background: var(--theia-editor-selectionBackground);
+}
+
+.vueport-disassembly-line .address {
+  opacity: 0.7;
+}
+
+.vueport-disassembly-line .code {
+  opacity: 0.5;
+  min-width: 14ch;
+}
+
+.vueport-disassembly-line .mnemonic {
+  min-width: 8ch;
+}
+
+/* --- Terminal ----------------------------------------------------------- */
+
+/* The panel itself does not scroll; the line list does, so the toolbar stays. */
+.vueport-terminal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.vueport-terminal-lines {
+  flex: 1;
+  font-family: var(--theia-code-font-family);
+  min-height: 0;
+  overflow: auto;
+  /* The empty states fill this area rather than the whole panel: EmptyContainer
+     positions itself against its nearest positioned ancestor, which without
+     this is the panel node Lumino positions — leaving it laid over the toolbar,
+     and the Follow output checkbox under it unclickable. */
+  position: relative;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Output the program has not terminated with a newline yet. */
+.vueport-terminal-line.partial {
+  opacity: 0.7;
+}
+
+/* --- VIP ---------------------------------------------------------------- */
+
+/* A view picker above whichever inspector is selected. */
+.vueport-vip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--theia-ui-padding);
+}
+
+/* Register and palette readouts, which sit side by side when there is room. */
+.vueport-vip-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--theia-ui-padding) * 2);
+}
+
+.vueport-vip h4,
+.vueport-registers h4 {
+  margin: 0 0 var(--theia-ui-padding);
+  opacity: 0.7;
+}
+
+/* What a register is for, beside its value: the Registers panel labels both
+   the VIP's and the CPU's this way. In the inspector sidebars it is instead
+   the current value of a control, beside the control. */
+.vueport-vip .hint,
+.vueport-registers .hint,
+.vueport-vip-inspector .hint,
+.vueport-vip-detail .hint {
+  opacity: 0.5;
+  padding-left: var(--theia-ui-padding);
+}
+
+.vueport-vip-swatches {
+  display: flex;
+  gap: 2px;
+}
+
+.vueport-vip-swatch {
+  border: 1px solid var(--theia-editorWidget-border);
+  display: inline-block;
+  height: 14px;
+  width: 14px;
+}
+
+/* Sized by the zoom, so it must not be stretched by the flex column. */
+.vueport-vip-canvas-wrapper {
+  align-self: flex-start;
+  position: relative;
+}
+
+.vueport-vip-canvas {
+  background: #000;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.vueport-vip-canvas-grid {
+  --vueport-grid-line: rgba(255, 255, 255, 0.25);
+
+  background-image:
+    linear-gradient(to right, var(--vueport-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--vueport-grid-line) 1px, transparent 1px);
+  /* Each gradient draws a cell's left or top edge, so without these the last
+     column and row would be left open at the image's right and bottom. Both
+     sit inside the box, where the next cell's line would have been: the image
+     is always a whole number of cells, so they land exactly where the grid
+     continues. */
+  border-bottom: 1px solid var(--vueport-grid-line);
+  border-right: 1px solid var(--vueport-grid-line);
+  box-sizing: border-box;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.vueport-vip-canvas-selection {
+  border: 2px solid #fff;
+  box-sizing: border-box;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* Keeps an extents rectangle that reaches past the image — a world can sit
+   partly, or wholly, off screen — from drawing over the rest of the panel. */
+.vueport-vip-canvas-clip {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* The same green the Actors panel marks the screen with — see HIGHLIGHT_COLOR
+   in emulator-screen-panel.ts, which has to match this by hand since it is
+   drawn into a canvas rather than bordered by CSS. A colour the Virtual Boy
+   cannot itself display, so it never blends into the picture. The rhythm is
+   the browser's here and a set three-on-three-off there, chosen to come out
+   the same at this width. */
+.vueport-vip-canvas-extents {
+  border: 1px dashed rgb(0, 255, 0);
+  box-sizing: border-box;
+  position: absolute;
+}
+
+.vueport-vip-table {
+  border-collapse: collapse;
+  font-family: var(--theia-code-font-family);
+  white-space: nowrap;
+  width: 100%;
+}
+
+.vueport-vip-table th {
+  font-weight: normal;
+  opacity: 0.7;
+  text-align: left;
+}
+
+.vueport-vip-table th,
+.vueport-vip-table td {
+  border-bottom: var(--theia-border-width) solid var(--theia-editorGroup-border);
+  padding: 1px var(--theia-ui-padding) 1px;
+}
+
+.vueport-vip-table tr:last-child td {
+  border-bottom: none;
+}
+
+.vueport-vip-table td {
+  text-align: right;
+}
+
+/* Worlds that are drawn to neither eye, dimmed so the active ones stand out. */
+.vueport-vip-table tr.inactive {
+  opacity: 0.45;
+}
+
+/* A table whose rows pick what the view below it describes: the Worlds panel's
+   worlds, the BGMaps panel's segments. Every column in one is a number or an
+   address, so the headers line up over their digits rather than over the left
+   edge of the column. */
+.vueport-vip-selectable-table th {
+  text-align: right;
+}
+
+.vueport-vip-selectable-table tbody tr {
+  cursor: pointer;
+}
+
+/* Wins over .inactive's dimming, which would otherwise wash out the selection
+   of a row that is dimmed for being unused. */
+.vueport-vip-selectable-table tbody tr.selected {
+  background: var(--theia-list-activeSelectionBackground);
+  color: var(--theia-list-activeSelectionForeground);
+  opacity: 1;
+}
+
+/* --- Worlds --------------------------------------------------------------- */
+
+/* The groups and the preview sit side by side under the table when the panel
+   is wide enough, and wrap once it is not — this is below a wide table rather
+   than in a narrow sidebar like the other inspectors. Shared by the Worlds and
+   Objects panels. */
+.vueport-vip-detail {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--theia-ui-padding) * 2);
+}
+
+/* Columns rather than a grid: the groups are wildly different heights — the
+   Properties one is a dozen fields, the others three or four — and a grid
+   would leave the short ones sitting in tall, mostly empty rows. */
+.vueport-vip-detail-groups {
+  display: flex;
+  gap: calc(var(--theia-ui-padding) * 2);
+}
+
+.vueport-vip-detail-groups > fieldset {
+  break-inside: avoid;
+  margin-bottom: calc(var(--theia-ui-padding) * 2);
+}
+
+/* Sized by the preview's own zoom, so it neither grows nor shrinks. */
+.vueport-vip-detail-preview {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--theia-ui-padding);
+}
+
+/* Field pairs likewise flow into as many columns as their group has room for. */
+.vueport-vip-detail-fields {
+  display: grid;
+  gap: 2px calc(var(--theia-ui-padding) * 3);
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.vueport-vip-detail-field {
+  align-items: center;
+  display: flex;
+  gap: var(--theia-ui-padding);
+  justify-content: space-between;
+  white-space: nowrap;
+}
+
+.vueport-vip-detail-field .label {
+  opacity: 0.7;
+}
+
+.vueport-vip-detail-field .value {
+  font-family: var(--theia-code-font-family);
+}
+
+/* Every editable field is a number or a short word, and the grid's columns are
+   narrow, so the controls are sized to their content rather than to the row. */
+.vueport-vip-detail-field input,
+.vueport-vip-detail-field select {
+  font-family: var(--theia-code-font-family);
+  min-width: 0;
+  width: 9ch;
+}
+
+/* Right-aligned like the read-only values beside them, so a column of fields
+   lines up on its digits however wide the numbers are. */
+.vueport-vip-detail-field input[type='number'] {
+  text-align: right;
+}
+
+/* A field whose control needs the whole group rather than one column of it. */
+.vueport-vip-detail-fields > .wide {
+  grid-column: 1 / -1;
+}
+
+.vueport-vip-detail-field.wide input {
+  flex: 1;
+  width: auto;
+}
+
+.vueport-vip-detail-flags {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  gap: var(--theia-ui-padding) calc(var(--theia-ui-padding) * 2);
+}
+
+.vueport-vip-detail-flags label {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.vueport-vip-footer {
+  opacity: 0.6;
+  padding-top: var(--theia-ui-padding);
+}
+
+/* --- A table above a detail view ------------------------------------------ */
+
+/*
+ * The shape the Worlds, BGMaps and Objects panels share: a table of everything,
+ * and below it the detail view for whichever row is selected.
+ *
+ * The panel's own node is the column they sit in — hence the class each of
+ * those three adds to itself in its constructor — so that the two regions can
+ * scroll independently rather than the whole panel scrolling as one.
+ */
+.vueport-panel.vueport-vip-split {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--theia-ui-padding) * 2);
+}
+
+/* Toolbars, footers and the detail view are sized by their content and stay
+   that way; only the table takes up the slack. */
+.vueport-vip-split > * {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.vueport-vip-split > div:last-child {
+  border-top: var(--theia-border-width) solid var(--theia-editorGroup-border);
+  padding-top: calc(var(--theia-ui-padding) * 2);
+}
+
+/* The table gets whatever height the rest does not, down to a floor of a
+   header and a few rows, and scrolls past that. It is wrapped rather than
+   scrolling itself, which would split its header and body into separately
+   sized anonymous tables. */
+.vueport-vip-split > .vueport-vip-split-table {
+  flex: 1 1 auto;
+  min-height: 140px;
+  overflow: auto;
+}
+
+/* Sized by its content, so resizing the panel changes the table's height
+   rather than this one's. The cap is for the cases where the content is taller
+   than any sensible share of the panel — a zoomed preview, or the BGMaps
+   inspector's 512-pixel map — which then scroll inside it instead of crowding
+   the table out. */
+.vueport-vip-split > .vueport-vip-detail {
+  max-height: 60%;
+  overflow: auto;
+}
+
+/* The BGMaps panel's detail view is the inspector, which manages its own inner
+   scrolling; it only needs releasing from the `height: 100%` it is given for
+   panels whose entire content it is. */
+.vueport-vip-split > .vueport-vip-inspector {
+  height: auto;
+  max-height: 60%;
+}
+
+/* --- Actors --------------------------------------------------------------- */
+
+/* Names and class names read left to right, unlike the numeric columns beside
+   them, and are the columns that take up any slack. */
+.vueport-actors-table th.vueport-actors-name,
+.vueport-actors-table td.vueport-actors-name {
+  text-align: left;
+}
+
+.vueport-actors-table td.vueport-actors-name {
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The component table is the widest thing in the detail view, so it scrolls
+   on its own rather than pushing the groups beside it out of the panel. */
+.vueport-actors-components {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.vueport-actors-components .hint {
+  opacity: 0.5;
+}
+
+/* An actor's own fields are many and of uneven length, so they flow into as
+   many columns as the panel is wide enough for rather than sitting in one. */
+.vueport-actors-fields .vueport-vip-detail-fields {
+  column-gap: calc(var(--theia-ui-padding) * 3);
+  columns: 22em;
+}
+
+/* --- Cheats --------------------------------------------------------------- */
+
+/* Names and code lists read left to right, unlike the numeric columns the
+   other selectable tables hold. */
+.vueport-cheats-table th,
+.vueport-cheats-table td.name {
+  text-align: left;
+}
+
+.vueport-cheats-table td.name {
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* One write: where it goes, what it writes, how wide, and a way to drop it. */
+.vueport-cheats-code {
+  align-items: center;
+  display: flex;
+  gap: var(--theia-ui-padding);
+}
+
+.vueport-cheats-code input,
+.vueport-cheats-code select {
+  font-family: var(--theia-code-font-family);
+}
+
+.vueport-cheats-code .address {
+  text-align: right;
+  width: 9ch;
+}
+
+.vueport-cheats-code .value {
+  text-align: right;
+  width: 9ch;
+}
+
+.vueport-cheats-code .separator {
+  opacity: 0.5;
+}
+
+/* Takes the rest of the row, so the codes above it and this line up on the
+   left however wide the group is. */
+.vueport-cheats-code .paste {
+  flex: 1;
+  min-width: 0;
+}
+
+.vueport-cheats-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  opacity: 0.5;
+  padding: 2px;
+}
+
+.vueport-cheats-remove:hover {
+  opacity: 1;
+}
+
+/* --- ESSound -------------------------------------------------------------- */
+
+/* File names and command descriptions read left to right, unlike the numeric
+   columns of the VIP tables. */
+.vueport-essound-table th,
+.vueport-essound-table td.name {
+  text-align: left;
+}
+
+.vueport-essound-table td.name {
+  max-width: 48ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The history is as tall as the detail area allows and scrolls inside it, so
+   the newest command is always the one in view. */
+.vueport-essound-history {
+  max-height: 100%;
+  overflow: auto;
+}
+
+/* --- VIP inspector sidebar layout ----------------------------------------- */
+
+/* Shared by the Characters and BGMaps panels. Overrides the base panel's own
+   padding+scroll so the sidebar can stay put while only the atlas on the
+   right scrolls. */
+.vueport-vip-inspector {
+  display: flex;
+  gap: calc(var(--theia-ui-padding) * 2);
+  height: 100%;
+}
+
+.vueport-vip-inspector-sidebar {
+  display: flex;
+  flex: 0 0 220px;
+  flex-direction: column;
+  gap: var(--theia-ui-padding);
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.vueport-vip-inspector-main {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+}
+
+.vueport-vip-inspector-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vueport-vip-inspector-field label {
+  opacity: 0.7;
+}
+
+.vueport-vip-inspector-field input {
+  box-sizing: border-box;
+  font-family: var(--theia-code-font-family);
+  width: 100%;
+}
+
+.vueport-vip-inspector-group {
+  border: var(--theia-border-width) solid var(--theia-editorGroup-border);
+  border-radius: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--theia-ui-padding);
+  margin: 0;
+  min-width: 0;
+  padding: calc(var(--theia-ui-padding) * 2);
+}
+
+.vueport-vip-inspector-group legend {
+  opacity: 0.7;
+  padding: 0 4px;
+}
+
+.vueport-vip-inspector-group label {
+  align-items: center;
+  display: flex;
+  gap: var(--theia-ui-padding);
+  min-width: 0;
+}
+
+/* Fixed-size controls (checkboxes) keep their own size; everything else
+   (number inputs, selects, the scale slider) shares whatever space is left
+   in the row rather than imposing its own content-driven minimum width —
+   without this, a <select>'s widest option, or a number input's default
+   size, can force the whole 220px sidebar wider and the panel to scroll. */
+.vueport-vip-inspector-group label > input:not([type='checkbox']),
+.vueport-vip-inspector-group label > select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A readout of what a slider is currently set to keeps its own width, rather
+   than sharing the row's spare space with the slider. */
+.vueport-vip-inspector-group label > .hint {
+  flex: 0 0 auto;
+}
+
+/* Two checkbox labels sharing one row, e.g. Frame Buffers' Left/Right. */
+.vueport-vip-inspector-checkbox-row {
+  display: flex;
+  gap: calc(var(--theia-ui-padding) * 2);
+}
+
+/* --- VSU ------------------------------------------------------------------ */
+
+.vueport-vsu-source {
+  align-items: center;
+  display: flex;
+  gap: var(--theia-ui-padding);
+}
+
+.vueport-vsu-spark {
+  display: block;
+  height: 18px;
+  width: 64px;
+}
+
+.vueport-vsu-spark polyline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.vueport-vsu-table th,
+.vueport-vsu-table td {
+  text-align: left;
+}
+
+/* --- Rumble Pack ---------------------------------------------------------- */
+
+.vueport-rumble-pack-status {
+  align-items: center;
+  display: flex;
+  gap: var(--theia-ui-padding);
+  padding-bottom: calc(var(--theia-ui-padding) * 2);
+}
+
+.vueport-rumble-pack-status.connected {
+  color: var(--theia-editorSuccess-foreground);
+}
+
+/* The panel is useful without hardware, so this reads as a fact, not a fault. */
+.vueport-rumble-pack-status.disconnected {
+  opacity: 0.7;
+}
+
+.vueport-rumble-pack-status button {
+  margin-left: var(--theia-ui-padding);
+}
+
+.vueport-rumble-pack-error {
+  color: var(--theia-editorWarning-foreground);
+  padding-bottom: calc(var(--theia-ui-padding) * 2);
+}
+
+.vueport-rumble-pack-info th {
+  opacity: 0.7;
+  padding-right: var(--theia-ui-padding);
+  text-align: left;
+  font-weight: normal;
+}
+
+.vueport-rumble-pack-info td {
+  font-family: var(--theia-code-font-family);
+}
+
+.vueport-rumble-pack-playing {
+  border: 1px solid var(--theia-dropdown-border);
+  border-radius: 2px;
+  font-size: 90%;
+  padding: 0 4px;
+  text-transform: none;
+}
+
+.vueport-rumble-pack-commands {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vueport-rumble-pack-commands > div {
+  display: flex;
+  gap: calc(var(--theia-ui-padding) * 2);
+}
+
+.vueport-rumble-pack-commands code {
+  min-width: 6ch;
+  opacity: 0.7;
+}
+
+.vueport-rumble-pack-commands > div.unknown span {
+  opacity: 0.5;
+}
+
+/* --- Cheats ---------------------------------------------------------- */
+
+.vueport-cheats-code {
+  align-items: center;
+  display: flex;
+  gap: var(--theia-ui-padding);
+}
+/* Stands in for the Remove button on a cheat that ships with the emulator. */
+.vueport-cheats-built-in {
+  align-items: center;
+  display: flex;
+  font-style: italic;
+  opacity: .6;
+  padding: 0 var(--theia-ui-padding);
+}

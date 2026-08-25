@@ -1,0 +1,55 @@
+{
+    "vueport": {
+        "commands": {
+            "category": "仿真器"
+        },
+        "configureInput": "配置输入",
+        "controller": {
+            "aCommand": "A",
+            "bCommand": "B",
+            "category": "仿真器游戏板",
+            "lDownCommand": "左侧D-pad ⇩",
+            "lLeftCommand": "左侧D-pad ⇦",
+            "lRightCommand": "左边的D-pad ⇨",
+            "lTriggerCommand": "左侧触发器",
+            "lUpCommand": "左侧D-pad ⇧",
+            "rDownCommand": "右侧D-pad ⇩",
+            "rLeftCommand": "右侧D-pad ⇦",
+            "rRightCommand": "右边的D-pad ⇨",
+            "rTriggerCommand": "右边的触发器",
+            "rUpCommand": "右侧D-pad ⇧",
+            "selectCommand": "选择",
+            "startCommand": "开始"
+        },
+        "currentSaveState": "当前保存状态",
+        "input": {
+            "audioMuteCommand": "音频静音",
+            "frameAdvanceCommand": "框架推进",
+            "fullscreenCommand": "全屏",
+            "loadStateCommand": "负载状态",
+            "pauseToggleCommand": "切换暂停",
+            "resetCommand": "复位",
+            "rewindCommand": "倒带",
+            "saveStateCommand": "拯救国家",
+            "screenshotCommand": "拍摄屏幕截图",
+            "stateSlotDecreaseCommand": "减少保存状态的槽位",
+            "stateSlotIncreaseCommand": "增加保存状态的槽位",
+            "toggleControlsOverlayCommand": "切换控件叠加",
+            "toggleFastForwardCommand": "拨动快进键",
+            "toggleLowPower": "切换低功率信号",
+            "toggleSlowmotionCommand": "拨动慢动作"
+        },
+        "mute": "静音",
+        "pause": "暂停",
+        "preferences": {
+            "builtInScalingModeDescription": "内置仿真器的缩放模式。"
+        },
+        "resume": "简历",
+        "scale": "楼梯",
+        "scales": {
+            "auto": "汽车",
+            "stretch": "伸展"
+        },
+        "unmute": "撤消静音"
+    }
+}

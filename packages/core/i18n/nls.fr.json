@@ -1,0 +1,55 @@
+{
+    "vueport": {
+        "commands": {
+            "category": "Emulateur"
+        },
+        "configureInput": "Configurer l'entrée",
+        "controller": {
+            "aCommand": "A",
+            "bCommand": "B",
+            "category": "Emulateur Game Pad",
+            "lDownCommand": "D-Pad gauche ⇩",
+            "lLeftCommand": "D-Pad gauche ⇦",
+            "lRightCommand": "D-Pad gauche ⇨",
+            "lTriggerCommand": "Gâchette gauche",
+            "lUpCommand": "D-Pad gauche ⇧",
+            "rDownCommand": "D-Pad droit ⇩",
+            "rLeftCommand": "D-Pad droit ⇦",
+            "rRightCommand": "D-Pad droit ⇨",
+            "rTriggerCommand": "Gâchette droite",
+            "rUpCommand": "Pavé numérique droit ⇧",
+            "selectCommand": "Sélectionnez",
+            "startCommand": "Début"
+        },
+        "currentSaveState": "État actuel de la sauvegarde",
+        "input": {
+            "audioMuteCommand": "Sourdine audio",
+            "frameAdvanceCommand": "Avance du cadre",
+            "fullscreenCommand": "Plein écran",
+            "loadStateCommand": "État de charge",
+            "pauseToggleCommand": "Toggle Pause",
+            "resetCommand": "Réinitialisation",
+            "rewindCommand": "Rewind",
+            "saveStateCommand": "Sauver l'État",
+            "screenshotCommand": "Prendre une capture d'écran",
+            "stateSlotDecreaseCommand": "Diminuer Sauver l'État Slot",
+            "stateSlotIncreaseCommand": "Augmentation de l'emplacement de l'état de sauvegarde",
+            "toggleControlsOverlayCommand": "Basculer la superposition des contrôles",
+            "toggleFastForwardCommand": "Basculer l'avance rapide",
+            "toggleLowPower": "Basculer le signal de faible puissance",
+            "toggleSlowmotionCommand": "Basculer le ralenti"
+        },
+        "mute": "Mute",
+        "pause": "Pause",
+        "preferences": {
+            "builtInScalingModeDescription": "Mode de mise à l'échelle de l'émulateur intégré."
+        },
+        "resume": "Curriculum vitae",
+        "scale": "Escaliers",
+        "scales": {
+            "auto": "Voiture",
+            "stretch": "Stretch"
+        },
+        "unmute": "Mauvaise humeur"
+    }
+}

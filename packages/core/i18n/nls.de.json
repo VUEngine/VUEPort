@@ -1,0 +1,55 @@
+{
+    "vueport": {
+        "commands": {
+            "category": "Emulator"
+        },
+        "configureInput": "Eingabe konfigurieren",
+        "controller": {
+            "aCommand": "A",
+            "bCommand": "B",
+            "category": "Emulator Controller",
+            "lDownCommand": "Linkes Steuerkreuz ⇩",
+            "lLeftCommand": "Linkes Steuerkreuz ⇦",
+            "lRightCommand": "Linkes Steuerkreuz ⇨",
+            "lTriggerCommand": "Linker Trigger",
+            "lUpCommand": "Linkes Steuerkreuz ⇧",
+            "rDownCommand": "Rechtes Steuerkreuz ⇩",
+            "rLeftCommand": "Rechtes Steuerkreuz ⇦",
+            "rRightCommand": "Rechtes Steuerkreuz ⇨",
+            "rTriggerCommand": "Rechter Trigger",
+            "rUpCommand": "Rechtes Steuerkreuz ⇧",
+            "selectCommand": "Auswählen",
+            "startCommand": "Start"
+        },
+        "currentSaveState": "Aktueller Speicherzustand",
+        "input": {
+            "audioMuteCommand": "Audio-Stummschaltung",
+            "frameAdvanceCommand": "Bildvorschub",
+            "fullscreenCommand": "Vollbild",
+            "loadStateCommand": "Speicherabbild laden",
+            "pauseToggleCommand": "Pause umschalten",
+            "resetCommand": "Zurücksetzen",
+            "rewindCommand": "Zurückspulen",
+            "saveStateCommand": "Speicherabbild speichern",
+            "screenshotCommand": "Screenshot machen",
+            "stateSlotDecreaseCommand": "Speicherabbild-Platz verringern",
+            "stateSlotIncreaseCommand": "Speicherabbild-Platz erhöhen",
+            "toggleControlsOverlayCommand": "Kontrollenansicht umschalten",
+            "toggleFastForwardCommand": "Schnellen Vorlauf einschalten",
+            "toggleLowPower": "\"Niedriger Batteriestand\" Signal umschalten",
+            "toggleSlowmotionCommand": "Zeitlupe umschalten"
+        },
+        "mute": "Stummschalten",
+        "pause": "Pause",
+        "preferences": {
+            "builtInScalingModeDescription": "Skalierungsmodus des integrierten Emulators."
+        },
+        "resume": "Fortsetzen",
+        "scale": "Skalieren",
+        "scales": {
+            "auto": "Automatisch",
+            "stretch": "Strecken"
+        },
+        "unmute": "Stummschaltung aufheben"
+    }
+}

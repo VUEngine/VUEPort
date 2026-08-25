@@ -1,0 +1,104 @@
+import { nls } from '../../../common/emulator-nls';
+import React, { PropsWithChildren, useEffect } from 'react';
+import HContainer from './HContainer';
+import styled from 'styled-components';
+
+const StyledError = styled(HContainer)`
+    align-items: center;
+    color: var(--theia-editorError-foreground);
+    flex-grow: 2;
+`;
+
+interface PopUpDialogProps {
+    open: boolean
+    onClose: () => void
+    onOk: () => void
+    okLabel?: string
+    title: string
+    error?: string
+    height?: string
+    width?: string
+    maxWidth?: string
+    okButton?: boolean
+    disableOkButton?: boolean
+    cancelButton?: boolean
+    overflow?: string
+}
+
+export default function PopUpDialog(props: PropsWithChildren<PopUpDialogProps>): React.JSX.Element {
+    const { open, onClose, onOk, okLabel, title, error, height, width, maxWidth, okButton, disableOkButton, cancelButton, children, overflow } = props;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+        switch (e.key) {
+            case 'Escape':
+                return onClose();
+            case 'Enter':
+                return onOk();
+        }
+    };
+
+    useEffect(() => {
+        document.addEventListener('keydown', onKeyDown);
+        return () => {
+            document.removeEventListener('keydown', onKeyDown);
+        };
+    }, []);
+
+    return <div
+        className="lm-Widget dialogOverlay"
+        style={{
+            display: open ? 'flex' : 'none',
+            height: '100%',
+            position: 'absolute',
+            width: '100%',
+        }}
+    >
+        <div className="dialogBlock" style={{
+            height,
+            maxWidth: maxWidth ?? '100%',
+            minWidth: '100px',
+            overflow: 'hidden',
+            width,
+        }}
+        >
+            <div className="dialogTitle">
+                <div>{title}</div>
+                <i
+                    className="codicon codicon-close action-label closeButton"
+                    onClick={onClose}
+                >
+                </i>
+            </div>
+            <div className="dialogContent" style={{ flexGrow: 1, maxHeight: 'unset', overflow }}>
+                {children}
+            </div>
+            <HContainer className="dialogControl">
+                <StyledError>
+                    {error && <>
+                        <i className='codicon codicon-warning' /> {error}
+                    </>}
+                </StyledError>
+                {cancelButton &&
+                    <button
+                        className="theia-button secondary"
+                        onClick={onClose}
+                    >
+                        {nls.localize('vueport/general/cancel', 'Cancel')}
+                    </button>
+                }
+                {(okButton === undefined || okButton === true) &&
+                    <button
+                        className="theia-button main"
+                        onClick={onOk}
+                        disabled={!!error || disableOkButton}
+                        style={{
+                            minWidth: '65px',
+                        }}
+                    >
+                        {okLabel ? okLabel : 'OK'}
+                    </button>
+                }
+            </HContainer>
+        </div>
+    </div>;
+}
