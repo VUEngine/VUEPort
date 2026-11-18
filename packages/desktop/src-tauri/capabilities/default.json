@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the application's windows are allowed to use \u2014 the main one, and the second player's, which is the same page playing the other end of a link session and therefore needs exactly the same things. The storage, Rumble Pack and opened-file commands are the application's own and need no entry here; `core:default` lets the page listen for the events the serial reader emits, `set-theme` lets the window's own chrome follow the light or dark mode the page is in, and the three window permissions are for the title bar the page draws in place of the system's: dragging the window by that strip, and the minimize and maximize buttons on the platforms where the frame is off. `set-fullscreen` and `is-fullscreen` are the Fullscreen button and command, which put the window itself into fullscreen rather than only the page's own element inside it. Closing is not among them \u2014 it goes through `request_quit`, so the saves are written first, the same as every other way out.",
+  "windows": [
+    "main",
+    "player2"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-theme",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen"
+  ]
+}

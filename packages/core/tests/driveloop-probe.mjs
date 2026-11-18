@@ -1,6 +1,5 @@
-// Mirrors VesVbWorker#emulateOneBuffer exactly, headlessly, to verify the
-// core call sequence (vbSetSamples / Emulate / GetBreaks / GetPixels / Mix)
-// and that the loop produces frames at the right rate.
+// mirrors Worker#emulateOneBuffer headlessly, to verify the core call sequence (vbSetSamples / Emulate / GetBreaks /
+// GetPixels / Mix) and that the loop produces frames at the right rate
 import fs from 'fs';
 
 const CLOCK = 20000000;
@@ -12,7 +11,7 @@ const F32 = 5;
 const BREAK_FRAME = 1;
 const W = 384, H = 224;
 
-const path = '../wasm/core.wasm';
+const path = new URL('../wasm/shrooms/core.wasm', import.meta.url);
 const { instance } = await WebAssembly.instantiate(fs.readFileSync(path), {
     env: { emscripten_notify_memory_growth: () => { } }
 });
@@ -22,7 +21,6 @@ E._initialize();
 const u32 = (p, n = 1) => new Uint32Array(E.memory.buffer, p, n);
 const f32 = (p, n) => new Float32Array(E.memory.buffer, p, n);
 
-// --- session setup, as VesVbWorker does ---
 const clocksPtr = E.Realloc(0, 4);
 const mixPtr = E.Realloc(0, MIX_LEN * 4);
 
@@ -41,7 +39,6 @@ E.SetAnaglyph(sim, 0xFF0000, 0x00FF00);  // eye-packed
 E.SetVolume(sim, 1);
 E.vbReset(sim);
 
-// --- drive loop ---
 const mixBuffer = new Float32Array(MIX_LEN);
 let frames = 0;
 const BUFFERS = 50;   // one second of emulated time
@@ -73,8 +70,7 @@ console.log('framebuffer bytes     :', pixels.length, pixels.length === W * H * 
 console.log('mix buffer floats     :', mixBuffer.length, '(', SAMPLES_PER_BUFFER, 'stereo frames )');
 console.log('mix buffer finite     :', mixBuffer.every(Number.isFinite));
 
-// With eye-packed anaglyph the blue channel must stay zero: only R (left) and
-// G (right) carry brightness. Alpha must be opaque.
+// with eye-packed anaglyph only R (left) and G (right) carry brightness, so blue must stay zero; alpha must be opaque
 let blueSet = 0, alphaBad = 0;
 for (let i = 0; i < pixels.length; i += 4) {
     if (pixels[i + 2] !== 0) blueSet++;

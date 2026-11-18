@@ -1,0 +1,28 @@
+{
+  "name": "vueport-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VUEPort as a packaged desktop application",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "bundle": "node scripts/bundle.mjs",
+    "clean": "rimraf src-tauri/target src-tauri/gen .mock-update",
+    "dev": "tauri dev",
+    "icons": "tauri icon ../web/public/favicon.png",
+    "icons:documents": "node scripts/document-icons.mjs",
+    "installer-art": "node scripts/installer-art.mjs",
+    "lint": "node --check src-tauri/diagnostics.js",
+    "mock-update": "node scripts/mock-update.mjs",
+    "pkg": "node scripts/pkg.mjs",
+    "lint:fix": "echo Nothing to fix automatically: lint here is node --check, a syntax check.",
+    "test": "node --check src-tauri/diagnostics.js && node tests/associations-probe.mjs && node tests/installer-art-probe.mjs && node tests/updater-probe.mjs && node tests/latest-json-probe.mjs",
+    "test:link": "node tests/link-probe.mjs",
+    "test:companions": "node tests/companions-probe.mjs",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "updater:keys": "tauri signer generate"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "rimraf": "^5"
+  }
+}

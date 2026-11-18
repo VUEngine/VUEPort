@@ -1,0 +1,29 @@
+{
+  "name": "vueport-probe",
+  "version": "1.0.0",
+  "description": "vbprobe: the VUEPort probe on the command line, for ROM files without the app",
+  "license": "MIT",
+  "author": "KR155E <c.radke@posteo.de>",
+  "main": "lib/node.js",
+  "types": "lib/node.d.ts",
+  "bin": {
+    "vbprobe": "bin/vbprobe.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "src",
+    "PROBE.md"
+  ],
+  "dependencies": {
+    "vueport-core": "1.0.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rimraf lib *.tsbuildinfo",
+    "lint": "eslint --ext ts src",
+    "lint:fix": "eslint --ext ts src --fix",
+    "test": "node tests/cli-probe.mjs",
+    "watch": "tsc -w"
+  }
+}

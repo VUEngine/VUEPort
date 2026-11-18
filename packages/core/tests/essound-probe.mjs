@@ -1,10 +1,6 @@
-// Checks the ESSound command decoder against the examples in the hardware
-// documentation (ESSound_01.pdf), and the file naming against its id ranges.
-//
-// The implementation under test is the shipped
-// lib/emulator/common/emulator-essound.js, so this exercises the real one.
-//
-// Usage: node scripts/essound-probe.mjs
+// checks the ESSound command decoder (the shipped lib/emulator/common/emulator-essound.js) against the examples
+// in the hardware documentation (ESSound_01.pdf), and the file naming against its id ranges
+// Usage: node tests/essound-probe.mjs
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -22,8 +18,6 @@ function check(label, actual, expected) {
 function section(name) {
     console.log(`\n${name}`);
 }
-
-// --- The examples the documentation gives -----------------------------------
 
 section("The documentation's own examples");
 {
@@ -59,8 +53,7 @@ section("The documentation's own examples");
     check('balance value', balance.value, 0xf);
     check('0xF is hard left', es.esSoundBalance(0xf), -1);
 
-    // From the VUEngine Studio examples in the same document:
-    // 0x0101 plays 1.mp3, 0x6502 plays 101.wav in loop.
+    // from the VUEngine Studio examples in the same document: 0x0101 plays 1.mp3, 0x6502 plays 101.wav in loop
     const mp3 = es.decodeEsSoundMessage(0x0101);
     check('1.mp3 track', mp3.track, 1);
     check('1.mp3 command', mp3.command, es.EsSoundCommand.PLAY);
@@ -71,19 +64,15 @@ section("The documentation's own examples");
     check('101.wav file', es.esSoundFileName(wav.track), '101.wav');
 }
 
-// --- Levels -----------------------------------------------------------------
-
 section('Volume and balance');
 {
     check('0x0 is silent', es.esSoundVolume(0x0), 0);
     check('0xF is full', es.esSoundVolume(0xf), 1);
     check('0x0 is hard right', es.esSoundBalance(0x0), 1);
-    check('0x7 is very nearly centre', Math.abs(es.esSoundBalance(0x7)) < 0.07, true);
+    check('0x7 is very nearly center', Math.abs(es.esSoundBalance(0x7)) < 0.07, true);
     check('0xF is hard left', es.esSoundBalance(0xf), -1);
     check('out of range clamps', es.esSoundVolume(99), 1);
 }
-
-// --- Files ------------------------------------------------------------------
 
 section('Track ids and file names');
 {
@@ -91,7 +80,7 @@ section('Track ids and file names');
     check('the last mp3', es.esSoundFileName(100), '100.mp3');
     check('the first wav', es.esSoundFileName(101), '101.wav');
     check('the last wav', es.esSoundFileName(254), '254.wav');
-    // 0 and 255 name nothing, per the documentation.
+    // 0 and 255 name nothing, per the documentation
     check('0 is not a track', es.esSoundFileName(0), undefined);
     check('255 is not a track', es.esSoundFileName(255), undefined);
     check('kind of an mp3 id', es.esSoundKindOf(50), 'mp3');
@@ -100,14 +89,11 @@ section('Track ids and file names');
     check('a file name reads back', es.esSoundTrackOf('42.mp3'), 42);
     check('and a wav one', es.esSoundTrackOf('101.wav'), 101);
     check('upper case too', es.esSoundTrackOf('101.WAV'), 101);
-    // An id in the wrong range for its extension is not a track.
     check('an mp3 in the wav range', es.esSoundTrackOf('101.mp3'), undefined);
     check('a wav in the mp3 range', es.esSoundTrackOf('1.wav'), undefined);
     check('something else entirely', es.esSoundTrackOf('output.vb'), undefined);
     check('no leading zeroes', es.esSoundTrackOf('001.mp3'), undefined);
 }
-
-// --- History lines ----------------------------------------------------------
 
 section('Describing a command');
 {

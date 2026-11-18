@@ -1,30 +1,20 @@
-/**
- * Emulator audio output processor.
- *
- * Drains interleaved stereo buffers produced by the core worker into the audio
- * graph, and returns each emptied buffer to the worker. That return is what
- * clocks emulation, so this processor is the session's timing source: buffers
- * are cycled rather than allocated, and never copied.
- *
- * Bundled as a standalone AudioWorklet entry point, so it must not import
- * anything from Theia.
- */
+// drains the core worker's interleaved stereo buffers into the audio graph and returns each emptied one. That return
+// clocks emulation, so this is the session's timing source; buffers are cycled, never allocated or copied. Bundled as a
+// standalone AudioWorklet entry point, so it must not import anything from Theia
 
 import { VB_AUDIO_PROCESSOR } from '../common/vb-constants';
 
-/** AudioWorklet globals, which lib.dom does not declare. */
+// AudioWorklet globals, which lib.dom does not declare
 declare abstract class AudioWorkletProcessor {
     readonly port: MessagePort;
 }
-declare function registerProcessor(name: string, processor: typeof VesVbAudioProcessor): void;
+declare function registerProcessor(name: string, processor: typeof AudioProcessor): void;
 
-class VesVbAudioProcessor extends AudioWorkletProcessor {
+class AudioProcessor extends AudioWorkletProcessor {
 
-    /** Filled buffers waiting to be played, oldest first. */
-    protected readonly buffers: Float32Array[] = [];
+    protected readonly buffers: Float32Array[] = []; // filled buffers waiting to be played, oldest first
 
-    /** Read position within the oldest buffer, in floats. */
-    protected offset = 0;
+    protected offset = 0; // read position within the oldest buffer, in floats
 
     protected core: MessagePort | undefined;
 
@@ -37,12 +27,8 @@ class VesVbAudioProcessor extends AudioWorkletProcessor {
         };
     }
 
-    /**
-     * Take either a filled buffer or an instruction from the worker.
-     *
-     * Both travel the same port so that they stay in order: a flush has to land
-     * between the audio that came before it and the audio that comes after.
-     */
+    // buffers and instructions share the port so they stay in order: a flush has to land between the audio before and
+    // after it
     protected receive(data: ArrayBuffer | { flush: true }): void {
         if (data instanceof ArrayBuffer) {
             this.buffers.push(new Float32Array(data));
@@ -53,13 +39,7 @@ class VesVbAudioProcessor extends AudioWorkletProcessor {
         }
     }
 
-    /**
-     * Drop everything queued and hand the buffers straight back.
-     *
-     * Queued audio was produced by a machine state that no longer exists — one
-     * that has since been reset or had a state loaded into it — so playing it
-     * out would be playing the past, audibly, before the new state is heard.
-     */
+    // queued audio came from a machine state that has since been reset or replaced by a loaded state
     protected flush(): void {
         this.offset = 0;
         if (this.buffers.length === 0) {
@@ -76,8 +56,8 @@ class VesVbAudioProcessor extends AudioWorkletProcessor {
 
         for (let x = 0; x < length;) {
 
-            // Underrun. Emit silence for the rest of this quantum rather than
-            // stuttering; the worker notices and presents its staged frame.
+            // underrun: silence for the rest of this quantum rather than stuttering; the worker notices and presents
+            // its staged frame
             if (this.buffers.length === 0) {
                 for (; x < length; x++) {
                     output[0][x] = output[1][x] = 0;
@@ -109,4 +89,4 @@ class VesVbAudioProcessor extends AudioWorkletProcessor {
     }
 }
 
-registerProcessor(VB_AUDIO_PROCESSOR, VesVbAudioProcessor);
+registerProcessor(VB_AUDIO_PROCESSOR, AudioProcessor);

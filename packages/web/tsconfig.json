@@ -1,0 +1,22 @@
+{
+    "extends": "../../configs/base.tsconfig",
+    "compilerOptions": {
+        "rootDir": "src",
+        "baseUrl": ".",
+        "esModuleInterop": true,
+        "jsx": "react",
+        "lib": [
+            "ES2017",
+            "ES2020.Promise",
+            "dom",
+            "dom.iterable"
+        ],
+        "composite": false,
+        "declaration": false,
+        "declarationMap": false,
+        "noEmit": true
+    },
+    "include": [
+        "src"
+    ]
+}

@@ -1,34 +1,26 @@
-// Does the core's write callback see link port stores, and does a started
-// transfer ever complete without a peer?
-//
-// Both questions decide whether rumble pack forwarding can work at all: the
-// emulator takes the bytes a game broadcasts off the link port by watching
-// writes to CDTR and CCR (see setLinkCapture in vb-worker.ts), and a game
-// that broadcasts stalls if the core never clears CCR's pending bit.
-//
-// Built on write-callback-probe.mjs, which established the callback ABI and
-// the table patching needed to install one; the ROM here stores to the
-// terminal port first, so a run that reports nothing at all can be told apart
-// from one where the program never executed.
-//
-// Usage: node scripts/link-capture-probe.mjs
+/**
+ * Does the core's write callback see link port stores, and does a started transfer complete without a peer? Rumble Pack
+ * forwarding watches writes to CDTR and CCR (see setLinkCapture in vb-worker.ts), and a broadcasting game stalls if the
+ * core never clears CCR's pending bit. Callback ABI and table patching as in write-callback-probe.mjs. The ROM stores to
+ * the terminal port first, so "nothing reported" can be told apart from "never executed".
+ * Usage: node tests/link-capture-probe.mjs
+ */
 import fs from 'fs';
 
-/** Link port registers, see libgccvb/source/hw.h. */
+// link port registers, see libgccvb/source/hw.h
 const CCR = 0x02000000;
 const CDTR = 0x02000008;
-/** __COM_START and __COM_PENDING, see Communications.c. */
+// __COM_START and __COM_PENDING, see Communications.c
 const COM_START = 0x04;
 const COM_PENDING = 0x02;
-/** Proof-of-execution marker, on the path write-callback-probe already pinned down. */
+// proof-of-execution marker, on the path write-callback-probe already pinned down
 const TERMINAL_PORT = 0x02000030;
 const TERMINAL_BYTE = 0x41;
-/** The byte the program broadcasts. */
 const PAYLOAD = 0x55;
 const TABLE_SLOTS = 16;
 
 const corePath = new URL(
-    '../wasm/core.wasm',
+    '../wasm/shrooms/core.wasm',
     import.meta.url
 );
 
@@ -44,7 +36,7 @@ function check(label, actual, expected) {
     return true;
 }
 
-// --- Patching the table (see write-callback-probe.mjs) -----------------------
+// patching the table, see write-callback-probe.mjs
 
 function readUleb(bytes, at) {
     let result = 0, shift = 0, length = 0, byte;
@@ -90,7 +82,7 @@ function patchTableLimit(bytes, slots) {
 
 const coreBytes = patchTableLimit(fs.readFileSync(corePath), TABLE_SLOTS);
 
-// --- The (i32 x6) -> i32 trampoline -----------------------------------------
+// the (i32 x6) -> i32 trampoline
 
 function uleb(value) {
     const out = [];
@@ -132,24 +124,8 @@ function makeTrampoline(onCall) {
     ).exports.t;
 }
 
-// --- A V810 program that broadcasts one byte ---------------------------------
-
-/**
- * The reset vector only has the last 16 bytes of the image to itself, which is
- * not enough for this program, so it jumps back to one laid out just below.
- *
- *   at 0xFFFFFFC0:
- *     movhi 0x0200, r0, r10    r10 = 0x02000000
- *     movea 0x0041, r0, r13
- *     st.b  r13, 0x30[r10]     terminal port: "the program ran"
- *     movea 0x0055, r0, r11
- *     st.b  r11, 0x08[r10]     CDTR = payload
- *     movea 0x0004, r0, r12
- *     st.b  r12, 0x00[r10]     CCR = __COM_START, as master
- *     br    0                  spin
- *   at 0xFFFFFFF0 (reset):
- *     jr    -0x30
- */
+// a V810 program at 0xFFFFFFC0 that marks the terminal port, writes the payload to CDTR, starts a transfer as master
+// (CCR = __COM_START) and spins; the 16 bytes at the reset vector are too few, so reset jumps back to it
 function buildRom() {
     const size = 0x100000;
     const rom = new Uint8Array(size);
@@ -172,7 +148,6 @@ function buildRom() {
     stb(12, CCR & 0xffff, 10);
     half(0x9400); // br 0
 
-    // jr -0x30, at the reset vector.
     at = size - 0x10;
     const disp = -0x30;
     half((0x2a << 10) | ((disp >> 16) & 0x3ff));
@@ -181,8 +156,6 @@ function buildRom() {
 }
 
 const ROM = buildRom();
-
-// --- Run ---------------------------------------------------------------------
 
 const { instance } = await WebAssembly.instantiate(coreBytes, {
     env: { emscripten_notify_memory_growth: () => { } }
@@ -251,7 +224,7 @@ check('the program ran (terminal port write seen)', byAddress.has(TERMINAL_PORT)
 check('the payload store is seen', byAddress.get(CDTR)?.byte, PAYLOAD);
 check('the transfer start is seen', byAddress.get(CCR)?.byte, COM_START);
 
-// What vb-worker.ts's capture rule would have produced from these writes.
+// what vb-worker.ts's capture rule would have produced from these writes
 const forwarded = [];
 let transmit = 0;
 for (const write of writes) {
@@ -264,8 +237,8 @@ for (const write of writes) {
 check('capture rule forwards exactly one byte', forwarded.length, 1);
 check('and it is the payload', forwarded[0], PAYLOAD);
 
-// Does an unpeered transfer ever finish? A game polls CCR's pending bit and
-// waits for it, so a bit that never clears is a game that never continues.
+// does an unpeered transfer ever finish? A game waits for CCR's pending bit, so a bit that never clears is a game
+// that never continues
 const pendingAfter = [];
 for (let frame = 0; frame < 5; frame++) {
     pendingAfter.push(E.vbRead(sim, CCR, 0) & 0xff);

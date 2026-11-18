@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    uses: ./.github/workflows/desktop.yml
+    secrets: inherit
+
+  publish:
+    name: Draft the release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Collect the builds
+        uses: actions/download-artifact@v4
+        with:
+          pattern: vueport-*
+          path: artifacts
+
+      - name: Check the tag against the version
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          product="$(node -p "require('./package.json').version")"
+          packaged="$(node -p "require('./packages/desktop/src-tauri/tauri.conf.json').version")"
+
+          if [ "$version" != "$product" ] || [ "$version" != "$packaged" ]; then
+            echo "The tag is $tag, so this release is $version."
+            echo "  package.json says      $product"
+            echo "  tauri.conf.json says   $packaged"
+            echo
+            echo 'Set all three to the same version and move the tag.'
+            exit 1
+          fi
+          echo "VUEPORT_VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Take the notes from the tag
+        run: |
+          set -euo pipefail
+          git tag -l --format='%(contents)' "${GITHUB_REF_NAME}" > release-notes.md
+          if [ -s release-notes.md ]; then
+            echo 'Release notes, from the tag:'
+            cat release-notes.md
+          else
+            echo "${GITHUB_REF_NAME} is a lightweight tag, so this release has no notes."
+          fi
+
+      - name: Build the update manifest
+        run: |
+          node packages/desktop/scripts/latest-json.mjs \
+            --artifacts artifacts \
+            --version "${VUEPORT_VERSION}" \
+            --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" \
+            --page "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}" \
+            --notes release-notes.md \
+            --out latest.json
+
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t assets < <(find artifacts -type f | sort)
+
+          prerelease=()
+          case "${VUEPORT_VERSION}" in
+            *-*) prerelease=(--prerelease) ;;
+          esac
+
+          gh release create "${GITHUB_REF_NAME}" \
+            --draft \
+            --verify-tag \
+            --title "VUEPort ${VUEPORT_VERSION}" \
+            --notes-file release-notes.md \
+            "${prerelease[@]}" \
+            latest.json \
+            "${assets[@]}"
+
+          echo
+          echo "Drafted. Nothing updates until it is published:"
+          gh release view "${GITHUB_REF_NAME}" --json url --jq .url

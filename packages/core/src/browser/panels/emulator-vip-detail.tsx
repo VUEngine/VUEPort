@@ -1,44 +1,40 @@
 import * as React from 'react';
 
-/**
- * The rows of a detail view: the label/value pairs the Worlds and Objects
- * panels put under their tables, and the number input they edit them with.
- *
- * Kept out of the panels themselves because both build the same kind of view
- * over different structures, and a field that reads one way in one of them and
- * another way in the other would be worse than either.
- */
+// the rows of the detail views the Worlds and Objects panels put under their tables, shared so a field reads the
+// same way in both
 
-/** A read-only label/value pair. */
 export function field(label: string, value: React.ReactNode, hint?: string): React.JSX.Element {
-    return <div className='vueport-vip-detail-field' key={label} title={hint}>
+    return <div className='vp-detail-field' key={label} title={hint}>
         <span className='label'>{label}</span>
         <span className='value'>{value}</span>
     </div>;
 }
 
-/**
- * The same pair, with an editable control in place of the value.
- *
- * `wide` gives the row the whole width of its group rather than one column of
- * it, for a control that needs the room — a name, rather than a number.
- */
+// `wide` gives the row the whole width of its group, for a control that needs the room (a name rather than a number)
 export function control(label: string, input: React.ReactNode, hint?: string, wide = false): React.JSX.Element {
-    return <div className={`vueport-vip-detail-field${wide ? ' wide' : ''}`} key={label} title={hint}>
+    return <div className={`vp-detail-field${wide ? ' wide' : ''}`} key={label} title={hint}>
         <span className='label'>{label}</span>
         {input}
     </div>;
 }
 
-/**
- * A number input that writes every keystroke straight through.
- *
- * Committing per keystroke rather than on blur is what makes editing work at
- * all here: the panels poll, so anything not written back is overwritten by
- * the next refresh a fraction of a second later. A value that does not parse
- * — the empty field left behind by selecting all and typing, say — is
- * dropped rather than written as a zero.
- */
+// the name above the control, for narrow columns without room for the longest name beside it
+export function stacked(
+    label: string, input: React.ReactNode, hint?: string, span = 1 // grid columns, for a dropdown or an address
+): React.JSX.Element {
+    return <div
+        className='vp-inspector-field'
+        key={label}
+        title={hint}
+        style={span > 1 ? { gridColumn: `span ${span}` } : undefined}
+    >
+        <label>{label}</label>
+        {input}
+    </div>;
+}
+
+// writes every keystroke straight through, as the panels poll and anything not written back is overwritten by the
+// next refresh. A value that does not parse (an emptied field) is dropped rather than written as a zero
 export function numberInput(
     value: number,
     min: number,
@@ -48,7 +44,7 @@ export function numberInput(
 ): React.JSX.Element {
     return <input
         type='number'
-        className='theia-input'
+        className='vp-input'
         min={min}
         max={max}
         step={step}

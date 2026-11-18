@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  What a Virtual Boy file is, for the systems that decide it by filename.
+
+  The .desktop file Tauri writes says which MIME types VUEPort opens. It does
+  not say which files have those types, and nothing else does either — so
+  without this, `MimeType=application/x-virtual-boy-rom` names a type no file
+  on the machine belongs to.
+
+  Installed into /usr/share/mime/packages, where dpkg's shared-mime-info
+  trigger picks it up and rebuilds the database. This is also the one place
+  where `.vb.zip` can be made to work as a type of its own: a glob is a
+  pattern, not a last-extension lookup, so a two-part name matches here where
+  it cannot on macOS or Windows. The weight puts it above the `*.zip` glob that
+  shared-mime-info ships (50), so a ROM archive is a ROM archive rather than an
+  archive that happens to hold one.
+-->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-virtual-boy-rom">
+    <comment>Virtual Boy ROM</comment>
+    <glob pattern="*.vb"/>
+    <icon name="application-x-virtual-boy-rom"/>
+  </mime-type>
+  <mime-type type="application/x-virtual-boy-color-rom">
+    <comment>Virtual Boy Color ROM</comment>
+    <glob pattern="*.vbc"/>
+    <icon name="application-x-virtual-boy-color-rom"/>
+  </mime-type>
+  <mime-type type="application/x-virtual-boy-rom-archive">
+    <comment>Virtual Boy ROM archive</comment>
+    <sub-class-of type="application/zip"/>
+    <glob pattern="*.vbz"/>
+    <glob pattern="*.vb.zip" weight="60"/>
+    <icon name="application-x-virtual-boy-rom-archive"/>
+  </mime-type>
+</mime-info>

@@ -1,11 +1,12 @@
-import { nls } from '../../../common/emulator-nls';
+import { Warning, X } from '@phosphor-icons/react';
 import React, { PropsWithChildren, useEffect } from 'react';
-import HContainer from './HContainer';
 import styled from 'styled-components';
+import { nls } from '../../../common/emulator-nls';
+import HContainer from './HContainer';
 
 const StyledError = styled(HContainer)`
     align-items: center;
-    color: var(--theia-editorError-foreground);
+    color: var(--vp-danger);
     flex-grow: 2;
 `;
 
@@ -63,11 +64,12 @@ export default function PopUpDialog(props: PropsWithChildren<PopUpDialogProps>):
         >
             <div className="dialogTitle">
                 <div>{title}</div>
-                <i
-                    className="codicon codicon-close action-label closeButton"
+                <div
+                    className="action-label closeButton"
                     onClick={onClose}
                 >
-                </i>
+                    <X size={16} />
+                </div>
             </div>
             <div className="dialogContent" style={{ flexGrow: 1, maxHeight: 'unset', overflow }}>
                 {children}
@@ -75,12 +77,12 @@ export default function PopUpDialog(props: PropsWithChildren<PopUpDialogProps>):
             <HContainer className="dialogControl">
                 <StyledError>
                     {error && <>
-                        <i className='codicon codicon-warning' /> {error}
+                        <Warning size={20} /> {error}
                     </>}
                 </StyledError>
                 {cancelButton &&
                     <button
-                        className="theia-button secondary"
+                        className="vp-button secondary"
                         onClick={onClose}
                     >
                         {nls.localize('vueport/general/cancel', 'Cancel')}
@@ -88,7 +90,7 @@ export default function PopUpDialog(props: PropsWithChildren<PopUpDialogProps>):
                 }
                 {(okButton === undefined || okButton === true) &&
                     <button
-                        className="theia-button main"
+                        className="vp-button main"
                         onClick={onOk}
                         disabled={!!error || disableOkButton}
                         style={{

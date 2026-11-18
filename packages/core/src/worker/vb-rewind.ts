@@ -1,46 +1,31 @@
 /**
- * Reverse delta codec for the rewind history.
- *
- * The simulation state struct is 1.85 MiB but only about 0.2% of it changes
- * per frame, so storing whole snapshots wastes almost all of the memory budget.
- * Encoding just the changed runs measures at roughly 112x smaller on a real
- * game (see scripts/rewind-cost-probe.mjs), which turns a 128 MB budget from
- * barely a second of history into minutes of it.
- *
- * A delta converts the newer state back to the older one, which is the
- * direction rewind walks, so stepping back is one XOR pass over the changed
- * bytes and needs no keyframes.
- *
- * Encoding is a series of runs: [uint32 offset][uint32 length][length bytes].
+ * Reverse delta codec for the rewind history. The 1.85 MiB state struct changes by about 0.2% per frame; encoding only
+ * the changed runs is roughly 112x smaller on a real game (tests/rewind-cost-probe.mjs), turning a 128 MB budget from
+ * barely a second of history into minutes. A delta turns the newer state into the older one, the direction rewind
+ * walks, so stepping back is one XOR pass and needs no keyframes. The encoding is a series of runs:
+ * [uint32 offset][uint32 length][length bytes].
  */
 
-/**
- * Changed words closer together than this stay in one run rather than paying
- * another 8 byte header. Measured as the sweet spot on a real game.
- */
+// changed words closer together than this stay in one run rather than paying another 8 byte header. Measured as the
+// sweet spot on a real game
 export const REWIND_RUN_GAP_WORDS = 4;
 
-/** Scratch run boundaries, so encoding allocates only its result. */
-export interface VesVbRunScratch {
+// scratch run boundaries, so encoding allocates only its result
+export interface RunScratch {
     starts: Int32Array;
     ends: Int32Array;
 }
 
-export function createRunScratch(capacity = 1 << 16): VesVbRunScratch {
+export function createRunScratch(capacity = 1 << 16): RunScratch {
     return { starts: new Int32Array(capacity), ends: new Int32Array(capacity) };
 }
 
-/**
- * Encode how `current` differs from `previous`.
- *
- * Applying the result to `current` yields `previous`. Both must be the same
- * length and a multiple of four bytes; comparison runs a word at a time, which
- * is both faster and how the state is actually laid out.
- */
+// applying the result to `current` yields `previous`. Both must be the same length and a multiple of four bytes, as
+// comparison runs a word at a time
 export function encodeDelta(
     previous: Uint8Array,
     current: Uint8Array,
-    scratch: VesVbRunScratch
+    scratch: RunScratch
 ): Uint8Array {
     const words = previous.length >> 2;
     const previousWords = new Uint32Array(previous.buffer, previous.byteOffset, words);
@@ -64,9 +49,8 @@ export function encodeDelta(
                 runs++;
                 start = i;
             }
-            // Out of run slots: fall through so the open run keeps extending.
-            // That stores some unchanged bytes, which is wasteful but correct;
-            // dropping the change instead would corrupt the history.
+            // out of run slots: the open run keeps extending, storing some unchanged bytes; dropping the change would
+            // corrupt the history
         }
         last = i;
     }
@@ -104,7 +88,7 @@ export function encodeDelta(
     return delta;
 }
 
-/** Apply a delta in place, walking the target back one capture. */
+// in place, walking the target back one capture
 export function applyDelta(target: Uint8Array, delta: Uint8Array): void {
     const view = new DataView(delta.buffer, delta.byteOffset, delta.byteLength);
     let offset = 0;
@@ -116,5 +100,58 @@ export function applyDelta(target: Uint8Array, delta: Uint8Array): void {
             target[from + i] ^= delta[offset + i];
         }
         offset += length;
+    }
+}
+
+// emulated frames between two filmstrip thumbnails, one a second. A thumbnail costs about as much as two seconds of
+// deltas, so taking one per capture would halve the history
+export const REWIND_THUMBNAIL_FRAMES = 50;
+
+// a presented frame at half size each way for the filmstrip, each pixel the average of a 2x2 block over the first
+// `channels` (the eyes' brightness for legacy frames, RGB for VBC). `width` is the frame's own, so a VBC frame's two
+// eyes stay apart, as the halves meet on an even column
+export function shrinkFrame(pixels: Uint8Array, width: number, height: number, channels: number): Uint8Array {
+    const halfWidth = width >> 1;
+    const halfHeight = height >> 1;
+    const shrunk = new Uint8Array(halfWidth * halfHeight * channels);
+    const row = width * 4;
+    let out = 0;
+    for (let y = 0; y < halfHeight; y++) {
+        let top = y * 2 * row;
+        for (let x = 0; x < halfWidth; x++, top += 8) {
+            const bottom = top + row;
+            for (let c = 0; c < channels; c++) {
+                shrunk[out++] = (pixels[top + c] + pixels[top + 4 + c]
+                    + pixels[bottom + c] + pixels[bottom + 4 + c] + 2) >> 2;
+            }
+        }
+    }
+    return shrunk;
+}
+
+// shrinkFrame undone as far as it can be: each stored pixel back to a 2x2 block of opaque RGBA, unused channels zero
+export function growFrame(
+    shrunk: Uint8Array,
+    width: number,
+    height: number,
+    channels: number,
+    out: Uint8Array,
+): void {
+    const halfWidth = width >> 1;
+    const halfHeight = height >> 1;
+    const row = width * 4;
+    out.fill(0);
+    let source = 0;
+    for (let y = 0; y < halfHeight; y++) {
+        let top = y * 2 * row;
+        for (let x = 0; x < halfWidth; x++, top += 8, source += channels) {
+            const bottom = top + row;
+            for (const at of [top, top + 4, bottom, bottom + 4]) {
+                for (let c = 0; c < channels; c++) {
+                    out[at + c] = shrunk[source + c];
+                }
+                out[at + 3] = 255;
+            }
+        }
     }
 }

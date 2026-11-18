@@ -1,41 +1,26 @@
-// Establishes and pins down the ABI of the Shrooms-VB core's write callback,
-// which is what terminal output is built on.
-//
-// Three things had to be discovered empirically, because the vendored core
-// ships no documentation and its own shim never uses callbacks:
-//
-//   1. Callbacks are indices into the exported __indirect_function_table, not
-//      addresses. vbGetFrameCallback returns 2 out of the box, which is the
-//      core's own default frame handler sitting in slot 2.
-//
-//   2. The core was built without table growth, so the table is pinned at the
-//      five entries it ships with and there is nowhere to install anything.
-//      Both of its declared limits encode as a single LEB128 byte, and element
-//      segments use fixed offsets, so raising them is an in-place byte patch.
-//
-//   3. The callback signature is (i32 x6) -> i32. Every other arity traps with
-//      a signature mismatch, which is what makes the sweep below conclusive.
-//
-// A JS function cannot be placed in the table directly, since the core is a
-// pure wasm module and WebAssembly.Function is unavailable, so a tiny wasm
-// trampoline module is assembled here that imports the JS function and exports
-// a real wasm function of the right type.
-//
-// The write is produced by a hand-assembled V810 program storing a byte to the
-// engine's terminal port, so this exercises the same path a game would.
-//
-// Usage: node scripts/write-callback-probe.mjs
+/**
+ * Pins down the ABI of the Shrooms-VB core's write callback, which terminal output is built on. The core ships no
+ * documentation and its shim never uses callbacks, so this was found empirically:
+ * 1. Callbacks are indices into the exported __indirect_function_table, not addresses. vbGetFrameCallback returns 2 out
+ *    of the box, the core's own default frame handler in slot 2.
+ * 2. The core was built without table growth, so the table is pinned at the entries it ships with. Both declared limits
+ *    encode as a single LEB128 byte and element segments use fixed offsets, so raising them is an in-place byte patch.
+ * 3. The signature is (i32 x6) -> i32. Every other arity traps with a signature mismatch, which makes the sweep
+ *    conclusive.
+ * WebAssembly.Function is unavailable, so a tiny wasm trampoline module imports the JS function and exports a wasm
+ * function of the right type. The write comes from a hand-assembled V810 program storing a byte to the engine's terminal
+ * port, the same path a game takes.
+ * Usage: node tests/write-callback-probe.mjs
+ */
 import fs from 'fs';
 
-/** The address VUEngine's Terminal::print writes to, see Terminal.c. */
+// the address VUEngine's Terminal::print writes to, see Terminal.c
 const TERMINAL_PORT = 0x02000030;
-/** The byte that program stores, chosen so it is recognisable in the output. */
 const TERMINAL_BYTE = 0x41;
-/** How many slots the table is widened to. */
 const TABLE_SLOTS = 16;
 
 const corePath = new URL(
-    '../wasm/core.wasm',
+    '../wasm/shrooms/core.wasm',
     import.meta.url
 );
 
@@ -49,8 +34,6 @@ function check(label, actual, expected) {
     }
     return true;
 }
-
-// --- Patching the table -----------------------------------------------------
 
 function readUleb(bytes, at) {
     let result = 0, shift = 0, length = 0, byte;
@@ -95,8 +78,6 @@ function patchTableLimit(bytes, slots) {
 }
 
 const coreBytes = patchTableLimit(fs.readFileSync(corePath), TABLE_SLOTS);
-
-// --- Assembling the trampoline ----------------------------------------------
 
 function uleb(value) {
     const out = [];
@@ -143,12 +124,9 @@ function makeTrampoline(arity, returnsValue, onCall) {
     ).exports.t;
 }
 
-// --- A V810 program that writes to the terminal port -------------------------
-
 /**
- * A 1 MB cartridge whose reset vector stores one byte to the terminal port and
- * then spins. The V810 resets to 0xFFFFFFF0, which decodes to the cartridge
- * region and so lands at the very end of the image.
+ * A 1 MB cartridge whose reset vector stores one byte to the terminal port and spins. The V810 resets to 0xFFFFFFF0,
+ * the very end of the cartridge image.
  *
  *   movhi 0x0200, r0, r10    r10 = 0x02000000
  *   movea 0x0041, r0, r11    r11 = 'A'
@@ -173,8 +151,6 @@ function buildRom() {
 }
 
 const ROM = buildRom();
-
-// --- Running one candidate ---------------------------------------------------
 
 async function run(arity, returnsValue) {
     const { instance } = await WebAssembly.instantiate(coreBytes, {
@@ -211,8 +187,7 @@ async function run(arity, returnsValue) {
         return 0;
     });
 
-    // Index 0 is the null function pointer and means "no callback", so the
-    // first usable slot is the first null one above it.
+    // index 0 is the null function pointer ("no callback"), so the first usable slot is the first null one above
     const table = E.__indirect_function_table;
     let slot = -1;
     for (let index = 1; index < table.length; index++) {
@@ -234,8 +209,7 @@ async function run(arity, returnsValue) {
     const clocksPtr = E.Realloc(0, 4);
 
     try {
-        // Emulate takes a pointer to the clock budget and decrements it, so it
-        // has to be driven the way the worker's drive loop does.
+        // Emulate takes a pointer to the clock budget and decrements it, so drive it like the worker's drive loop
         E.vbSetSamples(sim, E.GetExtSamples(sim), 5, 834);
         new Uint32Array(E.memory.buffer, clocksPtr, 1)[0] = 400000;
         let guard = 0;
@@ -248,15 +222,18 @@ async function run(arity, returnsValue) {
     return { calls, callbackIndex: E.vbGetWriteCallback(sim) };
 }
 
-// --- Table patching ----------------------------------------------------------
-
 console.log('Table');
 {
     const stock = await WebAssembly.instantiate(fs.readFileSync(corePath), {
         env: { emscripten_notify_memory_growth: () => { } }
     });
     const stockTable = stock.instance.exports.__indirect_function_table;
-    check('stock table is full', stockTable.length, 5);
+    // how many functions the stock table holds changed when the core was rebuilt for VBC, so it is read here and
+    // the checks only demand that the patch preserves it
+    const stockSlots = stockTable.length;
+    check('the stock table has no room to spare',
+        [...Array(stockSlots).keys()].slice(1).every(index => stockTable.get(index) !== null),
+        true);
     let stockGrew = true;
     try {
         stockTable.grow(1);
@@ -270,12 +247,12 @@ console.log('Table');
     });
     const table = patched.instance.exports.__indirect_function_table;
     check('patched table is wider', table.length, TABLE_SLOTS);
-    // The core's own entries must survive the patch, or its defaults break.
-    for (let index = 1; index <= 4; index++) {
+    // the core's own entries must survive the patch, or its defaults break
+    for (let index = 1; index < stockSlots; index++) {
         check(`slot ${index} still populated`, table.get(index) !== null, true);
     }
     check('slot 0 is still null', table.get(0), null);
-    for (let index = 5; index < TABLE_SLOTS; index++) {
+    for (let index = stockSlots; index < TABLE_SLOTS; index++) {
         check(`slot ${index} is free`, table.get(index), null);
     }
 
@@ -284,8 +261,6 @@ console.log('Table');
     check('default frame callback survives', patched.instance.exports.vbGetFrameCallback(sim), 2);
     check('no write callback by default', patched.instance.exports.vbGetWriteCallback(sim), 0);
 }
-
-// --- Signature sweep ---------------------------------------------------------
 
 console.log('\nSignature sweep');
 const survivors = [];
@@ -311,8 +286,7 @@ if (survivors.length === 1) {
     check('returns a value', found.returnsValue, true);
     check('the callback index round-trips', found.callbackIndex > 0, true);
 
-    // One st.b means exactly one write, so anything else would mean the
-    // callback is firing for reads or fetches too.
+    // one st.b is exactly one write, more would mean it fires for reads or fetches too
     check('one store produces one call', found.calls.length, 1);
 
     const [call] = found.calls;

@@ -1,12 +1,9 @@
-// Cross-simulation save state restore, which is what loading a state file from
-// disk actually does: the snapshot was taken by a simulation whose cart ROM,
-// cart RAM and sample buffers live at different addresses.
-//
-// Mirrors VesVbWorker#restore: memcpy the blob, then re-apply this
-// simulation's own pointers via the core's setters.
+// cross-simulation save state restore, as when loading a state file: the snapshot was taken by a simulation
+// whose cart ROM, cart RAM and sample buffers live elsewhere. Mirrors Worker#restore: memcpy the blob, then
+// re-apply this simulation's own pointers via the core's setters.
 import fs from 'fs';
 
-const path = '../wasm/core.wasm';
+const path = new URL('../wasm/shrooms/core.wasm', import.meta.url);
 const { instance } = await WebAssembly.instantiate(fs.readFileSync(path), {
     env: { emscripten_notify_memory_growth: () => { } }
 });
@@ -17,8 +14,7 @@ const SIZE = E.vbSizeOf();
 const F32 = 5, SAMPLES = 834, CLOCKS = 400000;
 const RAM_LEN = 8192;
 
-// A real ROM if one is given, otherwise a synthetic instruction stream. Both
-// simulations run the same cartridge contents from different addresses.
+// a real ROM if one is given, otherwise a synthetic instruction stream, run from different addresses
 const romPath = process.argv[2];
 let rom;
 if (romPath) {
@@ -59,7 +55,7 @@ function run(target, chunks) {
 
 const snap = t => new Uint8Array(E.memory.buffer, t.sim, SIZE).slice();
 
-// Exactly what the worker does on loadState.
+// exactly what the worker does on loadState
 function restore(target, blob) {
     new Uint8Array(E.memory.buffer, target.sim, SIZE).set(blob);
     E.vbSetCartROM(target.sim, target.romPtr, ROM_LEN);
@@ -73,27 +69,39 @@ console.log('sim A at', a.sim, '| sim B at', b.sim);
 console.log('their buffers differ:',
     a.romPtr !== b.romPtr && a.ramPtr !== b.ramPtr && a.samples !== b.samples);
 
-// Advance A, snapshot it, keep going.
 run(a, 10);
 const blob = snap(a);
 run(a, 25);
 const expected = snap(a);
 
-// Restore A's snapshot into B and replay the same amount of time.
 restore(b, blob);
 run(b, 25);
 const actual = snap(b);
 
-// The three embedded pointers are meant to differ; nothing else should.
-const POINTER_OFFSETS = [0, 4, 1876044];
+// the embedded pointers are meant to differ, nothing else should. Which words hold them is found, not written
+// down, as the offsets move whenever the core's state struct changes.
+const ownBuffers = new Map([
+    [a.romPtr, b.romPtr],
+    [a.ramPtr, b.ramPtr],
+    [a.samples, b.samples],
+]);
+const word = (bytes, at) =>
+    new DataView(bytes.buffer, bytes.byteOffset, bytes.length).getUint32(at, true);
+const isOwnBuffer = off => {
+    const at = off - (off % 4);
+    return ownBuffers.get(word(expected, at)) === word(actual, at);
+};
+
 const diffs = [];
 for (let off = 0; off < SIZE; off++) {
     if (expected[off] !== actual[off]) diffs.push(off);
 }
-const unexpected = diffs.filter(off => !POINTER_OFFSETS.some(p => off >= p && off < p + 4));
+const unexpected = diffs.filter(off => !isOwnBuffer(off));
+const pointerWords = [...new Set(diffs.filter(isOwnBuffer).map(off => off - (off % 4)))];
 
 console.log('\n=== cross-simulation restore ===');
 console.log('bytes differing overall      :', diffs.length);
+console.log('embedded pointers found at   :', pointerWords.join(', ') || 'none');
 console.log('differing outside pointers   :', unexpected.length,
     unexpected.length === 0 ? '(states match)' : `(FIRST AT ${unexpected.slice(0, 8)})`);
 console.log('PC after replay  A / B       :',
@@ -101,7 +109,7 @@ console.log('PC after replay  A / B       :',
 console.log('B still points at its own ROM:', E.vbGetCartROM(b.sim) === b.romPtr);
 console.log('B still points at its own RAM:', E.vbGetCartRAM(b.sim) === b.ramPtr);
 
-// Without the fixups, B would be left pointing into A's buffers.
+// without the fixups, B would be left pointing into A's buffers
 const naive = makeSim();
 new Uint8Array(E.memory.buffer, naive.sim, SIZE).set(blob);
 console.log('\n=== without the fixups (why they exist) ===');

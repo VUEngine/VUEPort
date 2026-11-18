@@ -15,14 +15,19 @@
   "dependencies": {
     "@lumino/dragdrop": "^2.1.8",
     "@lumino/messaging": "^2.0.4",
+    "@lumino/signaling": "^2.1.6",
+    "@lumino/virtualdom": "^2.0.4",
     "@lumino/widgets": "2.7.5",
     "@phosphor-icons/react": "2.0.15",
-    "chroma-js": "^3.1.2",
-    "lodash": "^4.17.21",
+    "brotli": "2.1.0",
+    "brotli-wasm": "3.0.1",
     "perfect-scrollbar": "1.5.5",
+    "qrcode-generator": "2.0.4",
     "react": "^18.3.1",
+    "react-color": "2.19.3",
     "react-dom": "^18.2.0",
-    "react-select": "^5.8.0",
+    "react-dropdown": "^2.0.0",
+    "seek-bzip": "^1.0.5",
     "styled-components": "^6.1.13"
   },
   "peerDependencies": {
@@ -34,7 +39,10 @@
     "lint": "eslint --ext ts,tsx src",
     "lint:fix": "eslint --ext ts,tsx src --fix",
     "prepare": "yarn clean && yarn build",
-    "test": "node tests/save-state-probe.mjs && node tests/nls-probe.mjs && node tests/rumble-effects-probe.mjs && node tests/cheat-file-probe.mjs && node tests/cheat-database-probe.mjs",
+    "test": "node tests/cached-answer-probe.mjs && node tests/log-time-probe.mjs && node tests/log-level-probe.mjs && node tests/save-state-probe.mjs && node tests/sram-map-probe.mjs && node tests/wide-sram-probe.mjs && node tests/save-state-store-probe.mjs && node tests/nls-probe.mjs && node tests/catalog-nls-probe.mjs && node tests/rumble-effects-probe.mjs && node tests/gamepad-rumble-probe.mjs && node tests/companion-files-probe.mjs && node tests/essound-gapless-probe.mjs && node tests/essound-player-probe.mjs && node tests/cheat-file-probe.mjs && node tests/cheat-database-probe.mjs && node tests/cheat-scan-probe.mjs && node tests/macro-file-probe.mjs && node tests/movie-file-probe.mjs && node tests/gamepad-profile-probe.mjs && node tests/vb-color-probe.mjs && node tests/vb-color-package-probe.mjs && node tests/rom-patch-probe.mjs && node tests/rom-patch-nobuffer-probe.mjs && node tests/rom-header-probe.mjs && node tests/vcu-memory-probe.mjs && node tests/vcu-colors-probe.mjs && node tests/vsu-decode-probe.mjs && node tests/vsu-state-probe.mjs && node tests/vsu-frequency-probe.mjs && node tests/restore-callback-probe.mjs && node tests/display-mode-probe.mjs && node tests/frame-history-probe.mjs && node tests/video-recorder-probe.mjs && node tests/sortable-table-probe.mjs && node tests/md5-probe.mjs && node tests/link-session-probe.mjs && node tests/turbo-probe.mjs && node tests/rom-cheat-probe.mjs && node tests/link-order-probe.mjs && node tests/pause-resume-probe.mjs && node tests/stall-guard-probe.mjs && node tests/live-profile-probe.mjs && node tests/determinism-probe.mjs '' 300 && node tests/probe-command-line-probe.mjs && node tests/probe-keys-probe.mjs && node tests/probe-machine-probe.mjs && node tests/probe-watch-probe.mjs && node tests/probe-inspect-probe.mjs && node tests/probe-trace-probe.mjs && node tests/probe-asm-probe.mjs && node tests/probe-host-probe.mjs && node tests/probe-frame-probe.mjs && node tests/probe-compare-probe.mjs",
     "watch": "tsc -w"
+  },
+  "devDependencies": {
+    "@types/react-color": "^3.0.13"
   }
 }

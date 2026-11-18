@@ -2,13 +2,8 @@ import { nls } from '../common/emulator-nls';
 import { Command } from '../common/emulator-command';
 import { EmulatorAction, EmulatorGamePadKeyCode } from './emulator-types';
 
-/**
- * The `when` clause every emulator input mapping is scoped to.
- *
- * Deliberately never true — the widget reads key presses itself so that it can
- * see releases as well, and a mapping that actually fired through the host's
- * dispatcher would only give it the press.
- */
+// never true on purpose: the widget reads key presses itself to see releases too, while a mapping firing through
+// the host's dispatcher would only deliver the press
 export const EMULATOR_FOCUS_CONTEXT = 'emulatorFocus';
 
 export namespace EmulatorCommands {
@@ -19,8 +14,8 @@ export namespace EmulatorCommands {
       label: 'Left D-Pad ⇧',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/lUpCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/lUp',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_L_RIGHT: Command = Command.toLocalizedCommand(
@@ -29,8 +24,8 @@ export namespace EmulatorCommands {
       label: 'Left D-Pad ⇨',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/lRightCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/lRight',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_L_DOWN: Command = Command.toLocalizedCommand(
@@ -39,8 +34,8 @@ export namespace EmulatorCommands {
       label: 'Left D-Pad ⇩',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/lDownCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/lDown',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_L_LEFT: Command = Command.toLocalizedCommand(
@@ -49,8 +44,8 @@ export namespace EmulatorCommands {
       label: 'Left D-Pad ⇦',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/lLeftCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/lLeft',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_START: Command = Command.toLocalizedCommand(
@@ -59,8 +54,8 @@ export namespace EmulatorCommands {
       label: 'Start',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/startCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/start',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_SELECT: Command = Command.toLocalizedCommand(
@@ -69,8 +64,8 @@ export namespace EmulatorCommands {
       label: 'Select',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/selectCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/select',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_L_TRIGGER: Command = Command.toLocalizedCommand(
@@ -79,8 +74,8 @@ export namespace EmulatorCommands {
       label: 'Left Trigger',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/lTriggerCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/lTrigger',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_R_UP: Command = Command.toLocalizedCommand(
@@ -89,8 +84,8 @@ export namespace EmulatorCommands {
       label: 'Right D-Pad ⇧',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/rUpCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/rUp',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_R_RIGHT: Command = Command.toLocalizedCommand(
@@ -99,8 +94,8 @@ export namespace EmulatorCommands {
       label: 'Right D-Pad ⇨',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/rRightCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/rRight',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_R_DOWN: Command = Command.toLocalizedCommand(
@@ -109,8 +104,8 @@ export namespace EmulatorCommands {
       label: 'Right D-Pad ⇩',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/rDownCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/rDown',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_R_LEFT: Command = Command.toLocalizedCommand(
@@ -119,8 +114,8 @@ export namespace EmulatorCommands {
       label: 'Right D-Pad ⇦',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/rLeftCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/rLeft',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_B: Command = Command.toLocalizedCommand(
@@ -129,8 +124,8 @@ export namespace EmulatorCommands {
       label: 'B',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/bCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/b',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_A: Command = Command.toLocalizedCommand(
@@ -139,8 +134,8 @@ export namespace EmulatorCommands {
       label: 'A',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/aCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/a',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_R_TRIGGER: Command = Command.toLocalizedCommand(
@@ -149,8 +144,8 @@ export namespace EmulatorCommands {
       label: 'Right Trigger',
       category: 'Emulator Game Pad',
     },
-    'vueport/controller/rTriggerCommand',
-    'vueport/controller/category'
+    'vueport/input/gamePads/commands/rTrigger',
+    'vueport/input/gamePads/category'
   );
 
   export const INPUT_SAVE_STATE: Command = Command.toLocalizedCommand(
@@ -159,37 +154,18 @@ export namespace EmulatorCommands {
       label: 'Save State',
       category: 'Emulator',
     },
-    'vueport/input/saveStateCommand',
+    'vueport/commands/saveState',
     'vueport/commands/category'
   );
 
+  // loads the newest state; there are no slots, picking an older one is done in the save state browser
   export const INPUT_LOAD_STATE: Command = Command.toLocalizedCommand(
     {
       id: 'emulator.input.loadState',
-      label: 'Load State',
+      label: 'Load Last State',
       category: 'Emulator',
     },
-    'vueport/input/loadStateCommand',
-    'vueport/commands/category'
-  );
-
-  export const INPUT_STATE_SLOT_DECREASE: Command = Command.toLocalizedCommand(
-    {
-      id: 'emulator.input.stateSlotDecrease',
-      label: 'Decrease Save State Slot',
-      category: 'Emulator',
-    },
-    'vueport/input/stateSlotDecreaseCommand',
-    'vueport/commands/category'
-  );
-
-  export const INPUT_STATE_SLOT_INCREASE: Command = Command.toLocalizedCommand(
-    {
-      id: 'emulator.input.stateSlotIncrease',
-      label: 'Increase Save State Slot',
-      category: 'Emulator',
-    },
-    'vueport/input/stateSlotIncreaseCommand',
+    'vueport/commands/loadState',
     'vueport/commands/category'
   );
 
@@ -199,7 +175,7 @@ export namespace EmulatorCommands {
       label: 'Toggle Fast Forward',
       category: 'Emulator',
     },
-    'vueport/input/toggleFastForwardCommand',
+    'vueport/commands/toggle/fastForward',
     'vueport/commands/category'
   );
 
@@ -209,7 +185,7 @@ export namespace EmulatorCommands {
       label: 'Toggle Pause',
       category: 'Emulator',
     },
-    'vueport/input/pauseToggleCommand',
+    'vueport/commands/toggle/pause',
     'vueport/commands/category'
   );
 
@@ -219,7 +195,7 @@ export namespace EmulatorCommands {
       label: 'Toggle Slow Motion',
       category: 'Emulator',
     },
-    'vueport/input/toggleSlowmotionCommand',
+    'vueport/commands/toggle/slowMotion',
     'vueport/commands/category'
   );
 
@@ -229,7 +205,7 @@ export namespace EmulatorCommands {
       label: 'Toggle Low Power Signal',
       category: 'Emulator',
     },
-    'vueport/input/toggleLowPower',
+    'vueport/commands/toggle/lowPower',
     'vueport/commands/category'
   );
 
@@ -239,7 +215,7 @@ export namespace EmulatorCommands {
       label: 'Rewind',
       category: 'Emulator',
     },
-    'vueport/input/rewindCommand',
+    'vueport/commands/rewind',
     'vueport/commands/category'
   );
 
@@ -249,7 +225,7 @@ export namespace EmulatorCommands {
       label: 'Frame Advance',
       category: 'Emulator',
     },
-    'vueport/input/frameAdvanceCommand',
+    'vueport/commands/frameAdvance',
     'vueport/commands/category'
   );
 
@@ -259,17 +235,17 @@ export namespace EmulatorCommands {
       label: 'Reset',
       category: 'Emulator',
     },
-    'vueport/input/resetCommand',
+    'vueport/commands/reset',
     'vueport/commands/category'
   );
 
   export const INPUT_AUDIO_MUTE: Command = Command.toLocalizedCommand(
     {
       id: 'emulator.input.audioMute',
-      label: 'Audio Mute',
+      label: 'Un/mute Audio',
       category: 'Emulator',
     },
-    'vueport/input/audioMuteCommand',
+    'vueport/commands/toggle/mute',
     'vueport/commands/category'
   );
 
@@ -279,17 +255,17 @@ export namespace EmulatorCommands {
       label: 'Fullscreen',
       category: 'Emulator',
     },
-    'vueport/input/fullscreenCommand',
+    'vueport/commands/fullscreen',
     'vueport/commands/category'
   );
 
   export const INPUT_TOGGLE_CONTROLS_OVERLAY: Command = Command.toLocalizedCommand(
     {
       id: 'emulator.input.toggleControlsOverlay',
-      label: 'Toggle Controls Overlay',
+      label: 'Configure Input',
       category: 'Emulator',
     },
-    'vueport/input/toggleControlsOverlayCommand',
+    'vueport/commands/configure/input',
     'vueport/commands/category'
   );
 
@@ -299,14 +275,25 @@ export namespace EmulatorCommands {
       label: 'Take Screenshot',
       category: 'Emulator',
     },
-    'vueport/input/screenshotCommand',
+    'vueport/commands/takeScreenshot',
+    'vueport/commands/category'
+  );
+
+  // one toggle rather than two commands (unlike profiling), as it is reached for by the same key while playing
+  export const INPUT_VIDEO_RECORD: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.input.videoRecord',
+      label: 'Record Video',
+      category: 'Emulator',
+    },
+    'vueport/commands/recordVideo',
     'vueport/commands/category'
   );
 
   export const ADD_PANEL: Command = Command.toLocalizedCommand(
     {
       id: 'emulator.panels.add',
-      label: 'Add Emulator Panel...',
+      label: 'Add Panel...',
       category: 'Emulator',
       iconClass: 'codicon codicon-add',
     },
@@ -325,20 +312,35 @@ export namespace EmulatorCommands {
     'vueport/commands/category'
   );
 
-  /**
-   * Profiling, as two commands rather than one toggle.
-   *
-   * Which of the two applies is decided by whether a recording is running, and
-   * only that one is offered — a palette entry meaning opposite things at
-   * different times is worse than two that each say what they do.
-   */
+  // profiling as two commands rather than one toggle, and only the one that applies is offered, as an entry that
+  // means opposite things at different times is worse than two that each say what they do
+  export const PLAY_MOVIE: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.movie.play',
+      label: 'Play Input Movie…',
+      category: 'Emulator',
+    },
+    'vueport/commands/movie/play',
+    'vueport/commands/category'
+  );
+
+  export const STOP_MOVIE: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.movie.stop',
+      label: 'Stop Input Movie',
+      category: 'Emulator',
+    },
+    'vueport/commands/movie/stop',
+    'vueport/commands/category'
+  );
+
   export const PROFILE_START: Command = Command.toLocalizedCommand(
     {
       id: 'emulator.profile.start',
       label: 'Start Profiling',
       category: 'Emulator',
     },
-    'vueport/commands/profileStart',
+    'vueport/commands/profile/start',
     'vueport/commands/category'
   );
 
@@ -348,7 +350,7 @@ export namespace EmulatorCommands {
       label: 'Stop Profiling and Export',
       category: 'Emulator',
     },
-    'vueport/commands/profileStop',
+    'vueport/commands/profile/stop',
     'vueport/commands/category'
   );
 
@@ -358,7 +360,7 @@ export namespace EmulatorCommands {
       label: 'Link Second Player',
       category: 'Emulator',
     },
-    'vueport/commands/linkSecondPlayer',
+    'vueport/commands/link/secondPlayer',
     'vueport/commands/category'
   );
 
@@ -368,7 +370,29 @@ export namespace EmulatorCommands {
       label: 'Unlink Players',
       category: 'Emulator',
     },
-    'vueport/commands/unlinkPlayers',
+    'vueport/commands/link/unlink',
+    'vueport/commands/category'
+  );
+
+  // this window runs both machines (see emulator-core-service.ts), so the inspectors can show the other player's
+  // machine, and a poke aimed at it lands in both windows
+  export const INSPECT_OTHER_PLAYER: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.link.inspectOther',
+      label: "Inspect the Other Player's Machine",
+      category: 'Emulator',
+    },
+    'vueport/commands/link/inspectOtherPlayer',
+    'vueport/commands/category'
+  );
+
+  export const INSPECT_OWN_PLAYER: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.link.inspectOwn',
+      label: 'Inspect This Player’s Machine',
+      category: 'Emulator',
+    },
+    'vueport/commands/link/inspectOwnPlayer',
     'vueport/commands/category'
   );
 
@@ -378,59 +402,188 @@ export namespace EmulatorCommands {
       label: 'Re-link Players',
       category: 'Emulator',
     },
-    'vueport/commands/relinkPlayers',
+    'vueport/commands/link/relink',
     'vueport/commands/category'
   );
 
-  /**
-   * Not one of the action commands: it has no key mapping and no toolbar
-   * button, because it throws away saved progress and wants to be reached
-   * deliberately rather than by a stray click. The palette is the whole of its
-   * surface; the confirmation dialog is the rest of its safety.
-   */
+  // not a panel, as the cheats aren't docked in either mode
+  export const TOGGLE_CHEATS: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.cheats.toggle',
+      label: 'Show Cheats',
+      category: 'Emulator',
+    },
+    'vueport/commands/toggle/cheats',
+    'vueport/commands/category'
+  );
+
+  export const TOGGLE_MACROS: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.macros.toggle',
+      label: 'Show Macros',
+      category: 'Emulator',
+    },
+    'vueport/commands/toggle/macros',
+    'vueport/commands/category'
+  );
+
+  export const TOGGLE_PATCHES: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.patches.toggle',
+      label: 'Show Patches',
+      category: 'Emulator',
+    },
+    'vueport/commands/toggle/patches',
+    'vueport/commands/category'
+  );
+
+  export const TOGGLE_SAVE_STATES: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.saveStates.toggle',
+      label: 'Show Save States',
+      category: 'Emulator',
+    },
+    'vueport/commands/toggle/saveStates',
+    'vueport/commands/category'
+  );
+
+  // see TOGGLE_CHEATS. Only one of the five strips can be open at a time
+  export const TOGGLE_ACHIEVEMENTS: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.achievements.toggle',
+      label: 'Show Achievements',
+      category: 'Emulator',
+    },
+    'vueport/commands/toggle/achievements',
+    'vueport/commands/category'
+  );
+
+  export const TOGGLE_VBC_SUPPORT: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.vbcSupport.toggle',
+      label: 'Toggle VB Color Support',
+      category: 'Emulator',
+    },
+    'vueport/commands/toggle/vbcSupport',
+    'vueport/commands/category'
+  );
+
+  export const SET_HARDWARE_MODE: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.hardwareMode',
+      label: 'Set Hardware Mode',
+      category: 'Emulator',
+    },
+    'vueport/commands/set/hardwareMode',
+    'vueport/commands/category'
+  );
+
+  // the save file slot (see EMULATOR_SAVE_SLOTS), not a state. Called "Save Game" because "save slot" alone would
+  // read like the save state slot next to it
+  export const SET_SAVE_SLOT: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.saveGameSlot',
+      label: 'Select Save Game Slot',
+      category: 'Emulator',
+    },
+    'vueport/commands/set/saveGameSlot',
+    'vueport/commands/category'
+  );
+
+  export const TOGGLE_DEBUG_MODE: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.mode.toggleDebug',
+      label: 'Toggle Debug Mode',
+      category: 'Emulator',
+    },
+    'vueport/commands/toggle/debugMode',
+    'vueport/commands/category'
+  );
+
+  export const TOGGLE_COLOR_MODE: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.mode.toggleColor',
+      label: 'Toggle VB Color Editor',
+      category: 'Emulator',
+    },
+    'vueport/commands/toggle/colorMode',
+    'vueport/commands/category'
+  );
+
+  // the browser keeps cartridge RAM and save states in OPFS, out of the user's reach and gone with cleared site data,
+  // so this lets progress be taken out and moved to another machine
+  export const EXPORT_SAVE: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.save.export',
+      label: 'Export Save Data…',
+      category: 'Emulator',
+    },
+    'vueport/commands/saveRam/export',
+    'vueport/commands/category'
+  );
+
+  export const IMPORT_SAVE: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.save.import',
+      label: 'Import Save Data…',
+      category: 'Emulator',
+    },
+    'vueport/commands/saveRam/import',
+    'vueport/commands/category'
+  );
+
+  // the newest state only; each state in the save state browser has its own Export
+  export const EXPORT_SAVE_STATE: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.saveState.export',
+      label: 'Export Latest Save State…',
+      category: 'Emulator',
+    },
+    'vueport/commands/saveStates/export',
+    'vueport/commands/category'
+  );
+
+  export const IMPORT_SAVE_STATE: Command = Command.toLocalizedCommand(
+    {
+      id: 'emulator.saveState.import',
+      label: 'Import Save State…',
+      category: 'Emulator',
+    },
+    'vueport/commands/saveStates/import',
+    'vueport/commands/category'
+  );
+
+  // erases the save in the current slot and restarts. Deliberately palette-only (no key, no toolbar button), as it
+  // throws away progress; the confirmation dialog is the rest of its safety. The id keeps saying SRAM though the label
+  // does not, as hosts' key bindings and menus are written against it
   export const DELETE_SRAM: Command = Command.toLocalizedCommand(
     {
       id: 'emulator.deleteSram',
-      label: 'Delete SRAM and Restart',
+      label: 'Delete Current Save Game Slot',
       category: 'Emulator',
     },
-    'vueport/commands/deleteSram',
+    'vueport/commands/saveRam/delete',
     'vueport/commands/category'
   );
 
 };
 
-/**
- * The controller's own buttons, as the emulator's state and its on-screen
- * reference both name them.
- */
 export type EmulatorGamePadButton =
     'lUp' | 'lRight' | 'lDown' | 'lLeft' | 'rUp' | 'rRight' | 'rDown' | 'rLeft'
     | 'a' | 'b' | 'start' | 'select' | 'lTrigger' | 'rTrigger';
 
 export interface EmulatorGamePadInput {
-    /** What the emulator presses when one of the mapped keys is. */
     key: EmulatorGamePadKeyCode;
-    /** The command the mapping hangs off, per player. */
     command: Command;
     player2: Command;
 }
 
-/**
- * The second player's copy of a game pad command.
- *
- * A separate command rather than a modifier on the first player's, because a
- * mapping *is* a keybinding and a keybinding belongs to exactly one command —
- * so two sets of keys means two sets of commands. They carry the first
- * player's labels, which already say which button they are, under a category
- * that says which player.
- */
+// a separate command rather than a modifier, as a keybinding belongs to exactly one command. Uses player one's
+// label under a player 2 category
 function player2Command(command: Command): Command {
     const player2: Command = { id: `${command.id}.player2` };
-    // Both read on access, for the reason `toLocalizedCommand` explains: this
-    // runs while the module is being imported, long before the host has
-    // installed its translations. Reading player one's label through its own
-    // accessor is also what keeps the two in step.
+    // getters, as this runs at import before the host has installed its translations (see toLocalizedCommand);
+    // going through player one's accessor also keeps the two labels in step
     Object.defineProperty(player2, 'label', {
         enumerable: true,
         get: () => command.label,
@@ -438,19 +591,14 @@ function player2Command(command: Command): Command {
     Object.defineProperty(player2, 'category', {
         enumerable: true,
         get: () => nls.localize(
-            'vueport/controller/categoryPlayer2',
+            'vueport/input/gamePads/categoryPlayer2',
             'Emulator Game Pad (Player 2)'
         ),
     });
     return player2;
 }
 
-/**
- * Every game pad button, with the commands that carry its key mappings.
- *
- * The order is the one the on-screen reference reads in, top to bottom of the
- * left half and then the right.
- */
+// in the order of the on-screen reference: top to bottom on the left half, then the right
 export const EMULATOR_GAMEPAD_INPUTS: Record<EmulatorGamePadButton, EmulatorGamePadInput> = {
     lTrigger: input(EmulatorGamePadKeyCode.LT, EmulatorCommands.INPUT_L_TRIGGER),
     lUp: input(EmulatorGamePadKeyCode.LUp, EmulatorCommands.INPUT_L_UP),
@@ -474,26 +622,70 @@ function input(key: EmulatorGamePadKeyCode, command: Command): EmulatorGamePadIn
 
 export const EMULATOR_GAMEPAD_BUTTONS = Object.keys(EMULATOR_GAMEPAD_INPUTS) as EmulatorGamePadButton[];
 
-/** The command a button's mapping hangs off, for one player. */
 export function emulatorGamePadCommand(button: EmulatorGamePadButton, player: number): Command {
     const gamePadInput = EMULATOR_GAMEPAD_INPUTS[button];
     return player === 2 ? gamePadInput.player2 : gamePadInput.command;
 }
 
-/**
- * The emulator's actions, and the commands they are invoked through.
- *
- * Everything that acts on a running emulator goes through one of these,
- * whether it came from the toolbar, the command palette, or a key. The key
- * mappings still reach the widget directly rather than through Theia's
- * dispatcher — see `EMULATOR_FOCUS_CONTEXT`, which is deliberately never true
- * so that the widget can see key releases as well as presses — but they now
- * end up in the same place everything else does.
- *
- * Keyed by the action, which is the emulator's own name for what it does; the
- * keys it answers to are whatever the keybinding registry says, and the
- * defaults for those live in `registerKeybindings`.
- */
+// every button can be on turbo, even directions or Start (e.g. a menu that scrolls one entry per press).
+// Ordered as in the input settings
+export const EMULATOR_TURBO_BUTTONS: readonly EmulatorGamePadButton[] = [
+    'lUp', 'lDown', 'lLeft', 'lRight',
+    'rUp', 'rDown', 'rLeft', 'rRight',
+    'select', 'start', 'b', 'a',
+    'lTrigger', 'rTrigger',
+];
+
+// holding its keys presses the button at the turbo rate. Own command with lazy label and category for the same
+// reasons as player2Command. Unbound by default
+function turboCommand(command: Command, player: 1 | 2): Command {
+    const turbo: Command = { id: `${command.id}.turbo${player === 2 ? '.player2' : ''}` };
+    Object.defineProperty(turbo, 'label', {
+        enumerable: true,
+        get: () => nls.localize('vueport/input/turbo/commandLabel', '{0} (Turbo)', command.label ?? ''),
+    });
+    Object.defineProperty(turbo, 'category', {
+        enumerable: true,
+        get: () => player === 2
+            ? nls.localize('vueport/input/turbo/categoryPlayer2', 'Emulator Game Pad Turbo (Player 2)')
+            : nls.localize('vueport/input/turbo/category', 'Emulator Game Pad Turbo'),
+    });
+    return turbo;
+}
+
+const EMULATOR_TURBO_COMMANDS = Object.fromEntries(EMULATOR_TURBO_BUTTONS.map(button => [button, {
+    command: turboCommand(EMULATOR_GAMEPAD_INPUTS[button].command, 1),
+    player2: turboCommand(EMULATOR_GAMEPAD_INPUTS[button].command, 2),
+}])) as Record<EmulatorGamePadButton, { command: Command, player2: Command }>;
+
+export function emulatorTurboCommand(button: EmulatorGamePadButton, player: number): Command {
+    const commands = EMULATOR_TURBO_COMMANDS[button];
+    return player === 2 ? commands.player2 : commands.command;
+}
+
+export const EMULATOR_MACRO_SLOT_COUNT = 8;
+
+export const EMULATOR_MACRO_SLOTS: readonly number[] =
+    Array.from({ length: EMULATOR_MACRO_SLOT_COUNT }, (unused, index) => index + 1);
+
+function macroSlotCommand(slot: number): Command {
+    const command: Command = { id: `emulator.macro.slot${slot}` };
+    Object.defineProperty(command, 'label', {
+        enumerable: true,
+        get: () => nls.localize('vueport/macros/slotCommand', 'Play Macro {0}', slot),
+    });
+    Object.defineProperty(command, 'category', {
+        enumerable: true,
+        get: () => nls.localize('vueport/commands/category', 'Emulator'),
+    });
+    return command;
+}
+
+// indexed by slot number minus one. Unbound by default; player one only, as a macro plays into the user's own machine
+export const EMULATOR_MACRO_SLOT_COMMANDS: readonly Command[] = EMULATOR_MACRO_SLOTS.map(macroSlotCommand);
+
+// toolbar, palette and keys all act on a running emulator through these, though key mappings still reach the widget
+// directly (see EMULATOR_FOCUS_CONTEXT). The default keys are in registerKeybindings
 export const EMULATOR_ACTION_COMMANDS: Record<EmulatorAction, Command> = {
     [EmulatorAction.PauseToggle]: EmulatorCommands.INPUT_PAUSE_TOGGLE,
     [EmulatorAction.Reset]: EmulatorCommands.INPUT_RESET,
@@ -505,11 +697,28 @@ export const EMULATOR_ACTION_COMMANDS: Record<EmulatorAction, Command> = {
     [EmulatorAction.Rewind]: EmulatorCommands.INPUT_REWIND,
     [EmulatorAction.SaveState]: EmulatorCommands.INPUT_SAVE_STATE,
     [EmulatorAction.LoadState]: EmulatorCommands.INPUT_LOAD_STATE,
-    [EmulatorAction.StateSlotDecrease]: EmulatorCommands.INPUT_STATE_SLOT_DECREASE,
-    [EmulatorAction.StateSlotIncrease]: EmulatorCommands.INPUT_STATE_SLOT_INCREASE,
     [EmulatorAction.Fullscreen]: EmulatorCommands.INPUT_FULLSCREEN,
     [EmulatorAction.ToggleControlsOverlay]: EmulatorCommands.INPUT_TOGGLE_CONTROLS_OVERLAY,
     [EmulatorAction.Screenshot]: EmulatorCommands.INPUT_SCREENSHOT,
+    [EmulatorAction.VideoRecord]: EmulatorCommands.INPUT_VIDEO_RECORD,
 };
 
 export const EMULATOR_ACTIONS = Object.keys(EMULATOR_ACTION_COMMANDS) as EmulatorAction[];
+
+// shared by both hosts so they ask in the same words. Built on call, as the host installs its translations during
+// start-up
+export function resetLayoutConfirmation(): {
+  title: string,
+  message: string,
+  okLabel: string,
+} {
+  return {
+    title: nls.localize('vueport/layout/reset/title', 'Reset Layout?'),
+    message: nls.localize(
+      'vueport/layout/reset/message',
+      'The panels go back to their default arrangement. '
+      + 'Any panels you have opened, moved or resized are lost.'
+    ),
+    okLabel: nls.localize('vueport/layout/reset/confirm', 'Reset'),
+  };
+}

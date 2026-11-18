@@ -1,53 +1,44 @@
 /**
- * Collecting a profile by replaying a recorded session.
- *
- * The Virtual Boy's emulation is bit-deterministic (§2 of the rewrite plan), so
- * a session can be reproduced exactly from the machine's state when recording
- * began plus the input it was given. Replaying it with an execute callback
- * gives an *exhaustive* profile — every instruction, no sampling error — and,
- * because the call stack is rebuilt from the calls and returns the replay sees
- * rather than unwound from frames, it works on the optimised, frame-pointer-less
- * builds a project actually ships. See §6.3.
- *
- * Nothing here runs the machine. It takes the stream of program counters a
- * replay produces and turns it into a call tree; driving the core is the
- * worker's job, and converting the result for Firefox Profiler is
- * `toFirefoxProfile` at the end.
+ * Collects a profile by replaying a recorded session. VB emulation is bit-deterministic, so a replay with an execute
+ * callback gives an exhaustive profile, and the call stack is rebuilt from calls and returns, so it works on optimized
+ * builds without frame pointers. This turns the replay's program counters into a call tree; driving the core is the
+ * worker's job, and `toFirefoxProfile` converts the result.
  */
 
-/** What an instruction does to the call stack. */
 export const enum VesInstructionKind {
     OTHER = 0,
-    /** JAL: pushes a frame. */
-    CALL = 1,
-    /**
-     * JMP [r31], the ordinary return.
-     *
-     * Decoded but no longer acted on: it turned out to miss about one return in
-     * thirty on real code — see `returnTo` — so frames are closed by arriving
-     * at their return address instead, which catches every way out. Kept
-     * because it says what the instruction is, and a future consumer may want
-     * to know.
-     */
+    CALL = 1, // JAL, pushes a frame
+    // JMP [r31], the ordinary return. Decoded but not acted on, as it missed about one return in thirty on real
+    // code (see `returnTo`); frames close on arriving at their return address instead
     RETURN = 2,
+    // HALT stops the processor until an interrupt while the clock runs on, so the live profiler charges it to an idle
+    // total, a CPU load figure without knowing the engine. A ROM looping on `halt` executes five instructions, then
+    // sits on it for a hundred thousand clocks
+    HALT = 3,
+    // RETI: hardware enters a handler without a call, so this is the only sign one finished. See
+    // VesLiveProfileCollector, which opens a frame on the vector and closes it here
+    RETI = 4,
+    // anything that writes (store, I/O write, bit string). A stretch without writes is likely waiting
+    // (`while(!flag);` is a load and a branch), which VesLiveProfileCollector uses for games that spin rather than `halt`
+    STORE = 5,
 }
 
-/** V810 opcodes, in the top six bits of the first halfword. */
+// V810 opcodes, in the top six bits of the first halfword
 const OP_JMP = 0b000110;
 const OP_JAL = 0b101011;
-/** The register JAL writes the return address into, and JMP returns through. */
-const LINK_REGISTER = 31;
+const OP_RETI = 0b011001;
+const OP_HALT = 0b011010;
+const LINK_REGISTER = 31; // JAL writes the return address into it, JMP returns through it
+// `0b11ccww` holds loads, stores, ins and outs; bit 2 marks the writing ones (ST.B/H/W, OUT.B/H/W, not LD or IN)
+const OP_WRITE_MASK = 0b110100;
+const OP_WRITE = 0b110100;
+// bit string instructions, one opcode with the operation in its low bits. Several write (`MOVBSU` is how a VB
+// game copies anything large), so the whole group counts as writing; counting a rare read loop as work is the
+// error worth making
+const OP_BITSTRING = 0b011111;
 
-/**
- * Work out what every instruction in a ROM does to the call stack, once.
- *
- * A replay reads no instruction back out of the machine: the ROM cannot change
- * while it runs, so this is knowable up front. Measured at 2.6 ms for a 1 MB
- * ROM, and it takes the per-instruction cost of maintaining a call stack from
- * 1.34x down to 1.13x — see §6.3.
- *
- * Indexed by halfword, since that is the smallest an instruction can be.
- */
+// what each ROM instruction does to the call stack, decoded once per halfword since the ROM cannot change. 2.6 ms for a
+// 1 MB ROM, cuts the call stack's per-instruction cost from 1.34x to 1.13x (see §6.3)
 export function decodeRomKinds(rom: Uint8Array): Uint8Array {
     const kinds = new Uint8Array(rom.byteLength >> 1);
     const view = new DataView(rom.buffer, rom.byteOffset, rom.byteLength);
@@ -58,109 +49,62 @@ export function decodeRomKinds(rom: Uint8Array): Uint8Array {
             ? VesInstructionKind.CALL
             : opcode === OP_JMP && (word & 0x1f) === LINK_REGISTER
                 ? VesInstructionKind.RETURN
-                : VesInstructionKind.OTHER;
+                : opcode === OP_HALT
+                    ? VesInstructionKind.HALT
+                    : opcode === OP_RETI
+                        ? VesInstructionKind.RETI
+                        : (opcode & OP_WRITE_MASK) === OP_WRITE || opcode === OP_BITSTRING
+                            ? VesInstructionKind.STORE
+                            : VesInstructionKind.OTHER;
     }
     return kinds;
 }
 
-/** A node of the collected call tree. */
 export interface VesProfileNode {
-    /** Index into the collector's `nodes`, and this node's own id. */
     id: number;
-    /** The node this was called from, or -1 at the root. */
-    parent: number;
-    /**
-     * The address called to reach this frame — the callee's entry point, which
-     * is what names the function. -1 for the root.
-     */
-    address: number;
-    /** Instructions executed in this frame itself, excluding anything it called. */
+    parent: number; // -1 at the root
+    address: number; // the callee's entry point, which names the function; -1 for the root
     selfSamples: number;
-    /** Instructions executed here and in everything below it. */
     totalSamples: number;
     children: Map<number, number>;
 }
 
-/**
- * Where the machine begins, and begins again.
- *
- * Arriving here means the machine restarted, which abandons every frame that
- * was open — a reset is not a return, and nothing below `main` will ever come
- * back. Without this, a game that reboots (a watchdog firing, a crash, a title
- * screen timing out) records each life nested inside the last, and the tree
- * fills with a chain of identical frames instead of showing a program that ran
- * several times.
- */
+// arriving here means a restart, which abandons every open frame. Without this, a game that reboots
+// (watchdog, crash, title timeout) records each life nested inside the last
 const RESET_VECTOR = 0xfffffff0;
 
-/**
- * How deep a call stack may get before the collector stops pushing.
- *
- * A runaway stack means the replay has lost sync with reality, and the useful
- * response is to stop growing rather than to consume memory describing it.
- */
+// a runaway stack means the replay lost sync, so stop growing rather than consume memory describing it
 const MAX_DEPTH = 256;
 
-/**
- * Turns a replay's program counters into a call tree.
- *
- * Feed it every instruction in order. It keeps a shadow stack of the frames
- * entered so far and charges each instruction to whichever frame is on top, so
- * `selfSamples` is time in a function proper and `totalSamples` is time in it
- * and everything it called.
- */
+// keeps a shadow stack and charges each instruction to the top frame, so `selfSamples` is time in a function
+// proper and `totalSamples` includes everything it called. Feed it every instruction in order
 export class VesProfileCollector {
 
-    /** The tree, with node 0 as the root everything hangs off. */
     readonly nodes: VesProfileNode[] = [{
         id: 0, parent: -1, address: -1, selfSamples: 0, totalSamples: 0, children: new Map(),
     }];
 
-    /** Node ids from the root down to the frame currently executing. */
     protected readonly stack: number[] = [0];
-    /**
-     * Where each frame on the stack is expected to return to.
-     *
-     * A call is not always undone by the instruction the plan assumed. Over
-     * sixty frames of a real game: 3,800 `jal` against 3,667 `jmp [r31]`, with
-     * the rest returning through `jmp` on some other register, through `reti`,
-     * or not at all. Watching only for `jmp [r31]` leaks about two frames per
-     * game frame, which buries the stack within seconds.
-     *
-     * So the return address is what actually decides: whenever execution
-     * arrives at the address a frame said it would return to, that frame is
-     * done, however it got there.
-     */
+    // the address each frame is expected to return to, which decides a return. Over sixty frames of a real game 3,800
+    // `jal` met 3,667 `jmp [r31]`, the rest returning via another register, `reti` or not at all
     protected readonly returnTo: number[] = [-1];
-    /** Set by a call, resolved on the next instruction — see `push`. */
-    protected pendingReturn = -1;
+    protected pendingReturn = -1; // set by a call, resolved on the next instruction, see `push`
     protected overflowed = 0;
     protected instructions = 0;
     protected resets = 0;
 
-    /**
-     * Charge one instruction, and follow it if it enters or leaves a frame.
-     *
-     * The kind is looked up by the caller, which has the decoded table and the
-     * address already; passing it in keeps this loop free of any indexing it
-     * does not have to do.
-     *
-     * @param address where the instruction is, in whatever window the machine
-     *     reports — the collector only ever compares these to each other
-     * @param kind what it does to the stack
-     */
+    // the caller passes `kind` as it has the decoded table and the address already. Addresses are only compared to each
+    // other, so any window the machine reports works
     push(address: number, kind: VesInstructionKind): void {
         if ((address >>> 0) === RESET_VECTOR) {
-            // Everything that was running is gone. Charge the reset itself to
-            // the root, which is where the next life starts from.
+            // everything that was running is gone; the reset is charged to the root, where the next life starts
             this.stack.length = 1;
             this.returnTo.length = 1;
             this.pendingReturn = -1;
             this.resets++;
         }
 
-        // A call's target is only known once the next instruction arrives, so
-        // the frame is entered here rather than when the call was seen.
+        // a call's target is only known once the next instruction arrives
         if (this.pendingReturn >= 0) {
             this.enter(address, this.pendingReturn);
             this.pendingReturn = -1;
@@ -172,19 +116,12 @@ export class VesProfileCollector {
         this.nodes[this.stack[this.stack.length - 1]].selfSamples++;
 
         if (kind === VesInstructionKind.CALL) {
-            // JAL is two halfwords, so this is the instruction after it.
+            // JAL is two halfwords, so this is the instruction after it
             this.pendingReturn = (address + 4) >>> 0;
         }
     }
 
-    /**
-     * Leave every frame that was waiting for this address.
-     *
-     * More than one at a time because a return can skip levels: a tail call
-     * leaves its caller's frame to be closed by the callee's return, and a
-     * non-local exit can abandon several at once. Scanning from the top down
-     * finds the innermost frame that was expecting to come back here.
-     */
+    // can be several, as a tail call or a non-local exit skips levels; scanned from the top for the innermost
     protected unwindTo(address: number): void {
         for (let depth = this.stack.length - 1; depth > 0; depth--) {
             if (this.returnTo[depth] === address) {
@@ -213,7 +150,7 @@ export class VesProfileCollector {
         this.returnTo.push(returnTo);
     }
 
-    /** Calls dropped for exceeding MAX_DEPTH, which nothing normal should. */
+    // calls dropped for exceeding MAX_DEPTH, which nothing normal should
     get overflows(): number {
         return this.overflowed;
     }
@@ -222,24 +159,11 @@ export class VesProfileCollector {
         return this.instructions;
     }
 
-    /**
-     * How many times the machine restarted during the recording.
-     *
-     * Worth surfacing rather than hiding: a profile spanning several reboots
-     * is describing several runs, and a reader should know that before drawing
-     * conclusions from it.
-     */
     get resetCount(): number {
         return this.resets;
     }
 
-    /**
-     * Roll self time up into total time.
-     *
-     * Children always come after their parent in `nodes` — a node is only
-     * created while its parent is on the stack — so one pass backwards
-     * accumulates the whole tree without recursing.
-     */
+    // rolls self time up into total time in one backwards pass, as children always come after their parent
     finish(): VesProfileNode[] {
         for (const node of this.nodes) {
             node.totalSamples = node.selfSamples;
@@ -252,48 +176,30 @@ export class VesProfileCollector {
     }
 }
 
-// --- Firefox Profiler -------------------------------------------------------
+// Firefox Profiler
 
-/** What a frame's address is called, and where it came from. */
 export interface VesProfileSymbol {
     name: string;
     file?: string;
     line?: number;
 }
 
-/**
- * The processed profile shape Firefox Profiler reads.
- *
- * Deliberately loose: the format is a set of parallel arrays whose exact
- * membership shifts between versions, and this only has to produce one the
- * importer accepts. The invariants that matter — every index in range, every
- * table the length it claims — are what the tests check.
- */
+// the processed profile shape Firefox Profiler reads. Loose, as the parallel arrays shift between versions;
+// the tests check the invariants (indices in range, table lengths)
 export interface VesFirefoxProfile {
     meta: Record<string, unknown>;
     libs: unknown[];
     threads: Record<string, unknown>[];
 }
 
-/** The processed-format version this was written against. */
 const PREPROCESSED_PROFILE_VERSION = 48;
 const PROFILE_VERSION = 27;
 
-/**
- * Convert a collected tree into a profile Firefox Profiler can open.
- *
- * Samples are *instructions*, not time, so the weight column says so: one
- * sample per instruction executed, which is exact rather than statistical.
- *
- * @param nodes the tree, after `finish()`
- * @param symbolise names an address — the Phase 5 line table does this
- * @param product what was profiled, shown as the profile's title. The game,
- *     not the editor: someone comparing two captures needs to know which is
- *     which, and every one of them would otherwise be called the same thing.
- */
+// samples are instructions, not time: one per instruction executed, exact rather than statistical. `symbolize` names an
+// address (the Phase 5 line table); `product` is the game, shown as the title so captures can be told apart
 export function toFirefoxProfile(
     nodes: VesProfileNode[],
-    symbolise: (address: number) => VesProfileSymbol,
+    symbolize: (address: number) => VesProfileSymbol,
     product: string
 ): VesFirefoxProfile {
     const strings: string[] = [];
@@ -317,7 +223,7 @@ export function toFirefoxProfile(
         if (index === undefined) {
             const symbol = address < 0
                 ? { name: '(root)' }
-                : symbolise(address);
+                : symbolize(address);
             index = funcName.length;
             funcName.push(intern(symbol.name));
             funcFile.push(symbol.file === undefined ? null : intern(symbol.file));
@@ -327,9 +233,7 @@ export function toFirefoxProfile(
         return index;
     };
 
-    // One frame and one stack node per tree node, which is the simplest shape
-    // that is still correct: the tree already has exactly the structure the
-    // stack table wants, parents included.
+    // one frame and one stack node per tree node, as the tree already has the stack table's structure
     const frameFunc: number[] = [];
     const frameAddress: number[] = [];
     const frameLine: (number | null)[] = [];
@@ -345,21 +249,12 @@ export function toFirefoxProfile(
         stackPrefix.push(node.parent < 0 ? null : node.parent);
     }
 
-    // A sample per node carrying that node's self time as its weight. The
-    // format allows weighted samples, so an exhaustive count does not have to
-    // be expanded into one entry per instruction — which for a minute of play
-    // would be hundreds of millions of them.
-    //
-    // The time column is the running total of those weights, which makes the
-    // axis *instructions executed*, not a clock. Two reasons it is not left at
-    // zero: a profile whose samples all share one timestamp has a zero-length
-    // range, which leaves the timeline with nothing to show; and the widths it
-    // gives each frame are then truthful, since they are exactly the share of
-    // execution that frame accounted for.
-    //
-    // What it is not is a chronology. Samples come out in tree order, so
-    // reading the timeline left to right does not replay the session — the
-    // call tree is what this format is being used for.
+    /**
+     * One sample per node, weighted with its self time, instead of one per instruction (hundreds of millions for a
+     * minute of play). The time column is the running total of the weights, so the axis is instructions executed: one
+     * shared timestamp would leave the timeline empty, and this way the widths are each frame's true share. It is not a
+     * chronology; samples come in tree order.
+     */
     const sampleStack: number[] = [];
     const sampleTime: number[] = [];
     const sampleWeight: number[] = [];
@@ -386,14 +281,10 @@ export function toFirefoxProfile(
             preprocessedProfileVersion: PREPROCESSED_PROFILE_VERSION,
             symbolicated: true,
             markerSchema: [],
-            // No `sampleUnits`. It describes the units of a `threadCPUDelta`
-            // column, and declaring it with a null unit makes the importer
-            // throw from `computeReferenceCPUDeltaPerMs`, which switches on
-            // that value and has no case for "none". These samples carry no
-            // CPU deltas at all — their weight is instructions — so the whole
-            // field is left out rather than filled in with something empty.
+            // no `sampleUnits`: it describes a `threadCPUDelta` column, and a null unit makes the importer throw from
+            // `computeReferenceCPUDeltaPerMs`. These samples carry no CPU deltas
             categories: [
-                { name: 'Other', color: 'grey', subcategories: ['Other'] },
+                { name: 'Other', color: 'gray', subcategories: ['Other'] },
             ],
         },
         libs: [],

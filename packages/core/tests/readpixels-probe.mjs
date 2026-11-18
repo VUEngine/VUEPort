@@ -1,34 +1,28 @@
-// Verifies the framebuffer read the Sound Editor's position readout depends on.
-//
-// The generated sound player ROM reports how far it has got by drawing its
-// elapsed tick count along the top of the screen, one lit-or-unlit pixel per
-// bit, eight pixels apart. That used to be recovered by copying the emulator's
-// canvas into a shadow canvas and calling getImageData; it is now a readPixels
-// call against the core's own composited framebuffer.
-//
-// This asserts the whole chain by standing in for the player: a hand-assembled
-// V810 program writes a known 32-bit pattern into the left framebuffer, turns
-// the display on, and the pattern is decoded back out of GetExtPixels exactly
-// the way Emulator.tsx decodes it.
-//
-// Usage: node scripts/readpixels-probe.mjs
+/**
+ * Verifies the framebuffer read behind the Sound Editor's position readout. The generated sound player ROM draws its
+ * elapsed tick count along the top of the screen, one lit-or-unlit pixel per bit, eight pixels apart, read with
+ * readPixels from the core's composited framebuffer. A hand-assembled V810 program stands in for the player: it writes a
+ * known 32-bit pattern into the left framebuffer and turns the display on, and the pattern is decoded out of
+ * GetExtPixels exactly as Emulator.tsx does.
+ * Usage: node tests/readpixels-probe.mjs
+ */
 import fs from 'fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { patchVesVbTableLimit } =
+const { patchTableLimit } =
     require('../lib/worker/vb-wasm.js');
 
 const SCREEN_WIDTH = 384;
 const SCREEN_HEIGHT = 224;
 
-// Must match Emulator.tsx.
+// must match Emulator.tsx
 const PLAYER_POSITION_ROW = 1;
 const PLAYER_POSITION_BITS = 32;
 const PLAYER_POSITION_SPACING = 8;
 const PLAYER_POSITION_THRESHOLD = 200;
 
-/** An awkward pattern: alternating, both ends set, never all-ones. */
+// alternating, both ends set, never all-ones
 const PATTERN = 0xa5c3f00f;
 
 let failures = 0;
@@ -42,17 +36,9 @@ function check(label, actual, expected) {
     return true;
 }
 
-/**
- * A cartridge that paints PATTERN into the left framebuffer and enables display.
- *
- * Virtual Boy framebuffers are column-major: each of the 384 columns holds 256
- * pixels at two bits each, so a column is 64 bytes and row r lives in byte
- * r >> 2 at bit (r & 3) * 2. Row 1 is therefore the byte at the top of a
- * column, bits 2-3, and a fully lit pixel there is 0x0C.
- *
- * Nothing else draws, because the drawing procedure is left disabled — so what
- * is written stays written.
- */
+// VB framebuffers are column-major: 256 pixels of two bits per column, 64 bytes, row r in byte r >> 2 at bit
+// (r & 3) * 2. Row 1 is bits 2-3 of a column's first byte, fully lit 0x0C. The drawing procedure stays disabled, so
+// what is written stays written
 function buildRom(pattern) {
     const size = 0x100000;
     const rom = new Uint8Array(size);
@@ -72,14 +58,13 @@ function buildRom(pattern) {
     movea(0x000c, 0, 11);                 // a lit row-1 pixel
     for (let bit = 0; bit < PLAYER_POSITION_BITS; bit++) {
         if ((pattern >>> bit) & 1) {
-            // Column bit*8, byte 0 of that column.
             stb(11, bit * PLAYER_POSITION_SPACING * 64, 0);
         }
     }
 
     movhi(0x0006, 0, 12); movea(0xf800, 12, 12);   // r12 = VIP registers
 
-    // Without brightness the mixer emits black whatever the framebuffer holds.
+    // without brightness the mixer emits black whatever the framebuffer holds
     movea(32, 0, 13); sth(13, 0x24, 12);   // BRTA
     movea(64, 0, 13); sth(13, 0x26, 12);   // BRTB
     movea(32, 0, 13); sth(13, 0x28, 12);   // BRTC
@@ -97,10 +82,10 @@ function buildRom(pattern) {
 }
 
 const corePath = new URL(
-    '../wasm/core.wasm',
+    '../wasm/shrooms/core.wasm',
     import.meta.url
 );
-const bytes = patchVesVbTableLimit(new Uint8Array(fs.readFileSync(corePath)));
+const bytes = patchTableLimit(new Uint8Array(fs.readFileSync(corePath)));
 const { instance } = await WebAssembly.instantiate(bytes, {
     env: { emscripten_notify_memory_growth: () => { } }
 });
@@ -119,7 +104,7 @@ const ramPtr = E.Realloc(0, 8192);
 new Uint8Array(E.memory.buffer, ramPtr, 8192).fill(0);
 E.vbSetCartRAM(sim, ramPtr, 8192);
 
-// Eye-packed, exactly as VesVbWorker configures every simulation.
+// eye-packed, as Worker configures every simulation
 E.SetAnaglyph(sim, 0xff0000, 0x00ff00);
 E.vbReset(sim);
 
@@ -146,7 +131,7 @@ const pixels = new Uint8Array(
     SCREEN_WIDTH * SCREEN_HEIGHT * 4
 );
 
-/** The rectangle copy VesVbWorker#readPixels performs. */
+// the rectangle copy Worker#readPixels performs
 function readPixels(x, y, width, height) {
     const left = Math.max(0, Math.min(x, SCREEN_WIDTH));
     const top = Math.max(0, Math.min(y, SCREEN_HEIGHT));
@@ -165,7 +150,6 @@ const width = (PLAYER_POSITION_BITS - 1) * PLAYER_POSITION_SPACING + 1;
 const row = readPixels(0, PLAYER_POSITION_ROW, width, 1);
 check('returned size', row.length, width * 4);
 
-// Every byte must equal the same pixel read straight out of the full buffer.
 let mismatches = 0;
 for (let x = 0; x < width; x++) {
     for (let channel = 0; channel < 4; channel++) {
@@ -177,7 +161,7 @@ for (let x = 0; x < width; x++) {
 }
 check('matches direct indexing', mismatches, 0);
 
-// A rectangle further in exercises both the row stride and the x offset.
+// a rectangle further in exercises both the row stride and the x offset
 const inset = readPixels(16, 1, 8, 3);
 let insetMismatches = 0;
 for (let y = 0; y < 3; y++) {
@@ -202,7 +186,7 @@ for (let bit = 0; bit < PLAYER_POSITION_BITS; bit++) {
 }
 check('tick pattern round-trips', decoded >>> 0, PATTERN >>> 0);
 
-// The red channel carries the left eye, which is what the threshold reads.
+// the red channel carries the left eye, which is what the threshold reads
 const litColumn = PLAYER_POSITION_SPACING * 4 * 0;
 check('a lit bit is above the threshold', row[litColumn] > PLAYER_POSITION_THRESHOLD, (PATTERN & 1) === 1);
 check('blue is unused by eye packing', row[litColumn + 2], 0);

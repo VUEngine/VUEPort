@@ -2,3 +2,13 @@ node_modules/
 lib/
 *.tsbuildinfo
 .DS_Store
+
+deploy.env
+dist/
+packages/web/dist-dev/
+
+packages/desktop/src-tauri/target/
+packages/desktop/src-tauri/gen/
+
+packages/desktop/.mock-update/
+packages/core/wasm/rcheevos/upstream/

@@ -19,7 +19,7 @@ export default function VContainer(props: PropsWithChildren<VContainerProps>): R
             alignItems,
             display: 'flex',
             flexDirection: 'column',
-            gap: gap !== undefined ? gap : 5,
+            gap: gap !== undefined ? gap : 'var(--vp-space)',
             flexGrow: grow,
             justifyContent,
             overflow,

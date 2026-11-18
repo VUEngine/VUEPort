@@ -1,17 +1,16 @@
-// The inspection primitives behind the debug panels: memory reads through the
-// CPU's view of the bus, register reads, and the core's own disassembler.
-//
-// Usage: node scripts/inspect-probe.mjs <path/to/rom.vb>
+// the inspection primitives behind the debug panels: memory reads through the CPU's view of the bus,
+// register reads and the core's own disassembler
+// Usage: node tests/inspect-probe.mjs <path/to/rom.vb>
 import fs from 'fs';
 
 const romPath = process.argv[2];
 if (!romPath) {
-    console.error('Usage: node scripts/inspect-probe.mjs <path/to/rom.vb>');
+    console.error('Usage: node tests/inspect-probe.mjs <path/to/rom.vb>');
     process.exit(1);
 }
 
 const CLOCKS = 400000, F32 = 5, SAMPLES = 834, U8 = 1;
-const corePath = '../wasm/core.wasm';
+const corePath = '../wasm/shrooms/core.wasm';
 const { instance } = await WebAssembly.instantiate(fs.readFileSync(corePath), {
     env: { emscripten_notify_memory_growth: () => { } }
 });
@@ -46,7 +45,7 @@ const check = (label, ok, detail = '') => {
     console.log(`${ok ? 'ok  ' : 'FAIL'}  ${label}${detail ? '  ' + detail : ''}`);
 };
 
-// --- Memory reads, as VesVbWorker#readMemory does them.
+// memory reads, as Worker#readMemory does them
 const readMemory = (address, length) => {
     const out = new Uint8Array(length);
     for (let i = 0; i < length; i++) out[i] = E.vbRead(sim, (address + i) >>> 0, U8) & 0xFF;
@@ -63,7 +62,6 @@ check('WRAM is readable', wram.length === 256,
     `first bytes ${[...wram.slice(0, 8)].map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
 check('WRAM is not blank after boot', wram.some(b => b !== 0 && b !== 0xFF));
 
-// --- VIP registers, which the VIP panel reads as one block.
 console.log('\n=== VIP registers ===');
 const vip = readMemory(0x0005F800, 0x80);
 const reg = offset => vip[offset] | (vip[offset + 1] << 8);
@@ -75,7 +73,6 @@ console.log(`      INTPND=${reg(0x00).toString(16).padStart(4, '0')}` +
     `  BKCOL=${reg(0x70).toString(16).padStart(4, '0')}`);
 check('a running game has configured the display', reg(0x20) !== 0 || reg(0x22) !== 0);
 
-// --- Registers.
 console.log('\n=== CPU registers ===');
 const pc = E.vbGetProgramCounter(sim) >>> 0;
 check('program counter is in cartridge ROM', pc >= 0x07000000, `PC=${pc.toString(16)}`);
@@ -85,7 +82,7 @@ const nonZero = Array.from({ length: 32 }, (u, i) => E.vbGetProgramRegister(sim,
 check('general registers hold live values', nonZero > 4, `${nonZero} of 32 non-zero`);
 check('PSW is readable', Number.isFinite(E.vbGetSystemRegister(sim, 5)));
 
-// --- Disassembly, walked exactly as VesVbWorker#disassemble does.
+// disassembly, walked exactly as Worker#disassemble does
 console.log('\n=== disassembly at the program counter ===');
 const COUNT = 8;
 const dasm = E.vbuDisassemble(sim, pc, 0, COUNT, 0);

@@ -1,0 +1,201 @@
+name: Desktop
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows (WebView2)
+            artifact: windows-x64
+          - os: macos-latest
+            label: macOS Apple Silicon (WKWebView)
+            target: aarch64-apple-darwin
+            artifact: macos-aarch64
+          - os: macos-latest
+            label: macOS Intel (WKWebView)
+            target: x86_64-apple-darwin
+            artifact: macos-x64
+          - os: ubuntu-22.04
+            label: Linux x64 (WebKitGTK)
+            artifact: linux-x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            libfuse2 \
+            librsvg2-dev \
+            libssl-dev \
+            libudev-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            patchelf \
+            rpm \
+            wget \
+            xdg-utils
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Build the web application
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+        run: |
+          yarn install --frozen-lockfile
+          yarn build
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/desktop/src-tauri
+          key: ${{ matrix.artifact }}
+      - name: Install the Windows signing tool
+        if: matrix.os == 'windows-latest'
+        env:
+          CERTUM_EMAIL: ${{ secrets.CERTUM_EMAIL }}
+        shell: pwsh
+        run: |
+          if (-not $env:CERTUM_EMAIL) {
+            Write-Host 'No Certum account configured; this build will be unsigned.'
+            exit 0
+          }
+
+          $version = 'v0.1.6'
+          $expected = '8A2A16738F0E1F368B4640CC6CB53FAC8072A38DF9334A72A96E071169B730F0'
+
+          $archive = Join-Path $env:RUNNER_TEMP 'ssign.zip'
+          $directory = Join-Path $env:RUNNER_TEMP 'ssign'
+
+          Invoke-WebRequest -OutFile $archive -Uri `
+            "https://github.com/Le-Syl21/ssign/releases/download/$version/ssign-windows-x86_64.zip"
+
+          $actual = (Get-FileHash -Algorithm SHA256 -Path $archive).Hash
+          if ($actual -ne $expected) {
+            Write-Error "ssign $version is not the build this workflow pins.`nexpected $expected`ngot      $actual"
+            exit 1
+          }
+
+          Expand-Archive -Path $archive -DestinationPath $directory -Force
+          Remove-Item $archive
+
+          if (-not (Test-Path (Join-Path $directory 'ssign.exe'))) {
+            Write-Error 'ssign.exe is not where the archive was expected to put it.'
+            exit 1
+          }
+
+          Add-Content -Path $env:GITHUB_PATH -Value $directory
+
+      - name: Import the macOS certificates
+        if: matrix.os == 'macos-latest'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_INSTALLER_CERTIFICATE: ${{ secrets.APPLE_INSTALLER_CERTIFICATE }}
+          APPLE_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$APPLE_CERTIFICATE" ] && [ -z "$APPLE_INSTALLER_CERTIFICATE" ]; then
+            echo 'No macOS certificate configured; this build will be unsigned.'
+            exit 0
+          fi
+
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(uuidgen)"
+
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+
+          # import_p12 <secret name> <base64 .p12> <its password>
+          import_p12() {
+            local name="$1" encoded="$2" secret="$3"
+            local certificate="$RUNNER_TEMP/$name.p12"
+
+            if ! printf '%s' "$encoded" | base64 -d > "$certificate" 2>/dev/null; then
+              echo "$name is not base64. Re-create it with:"
+              echo '  base64 -i certificate.p12 | pbcopy'
+              exit 1
+            fi
+
+            if ! openssl pkcs12 -in "$certificate" -passin pass:"$secret" -noout -legacy 2>/dev/null \
+               && ! openssl pkcs12 -in "$certificate" -passin pass:"$secret" -noout 2>/dev/null; then
+              echo "$name decodes to $(wc -c < "$certificate" | tr -d ' ') bytes that are not a PKCS#12" \
+                'archive readable with its password.'
+              echo 'Export the Developer ID certificate *and* its private key from Keychain'
+              echo 'Access as a .p12, then:  base64 -i certificate.p12 | pbcopy'
+              exit 1
+            fi
+
+            security import "$certificate" -k "$keychain" -P "$secret" \
+              -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/security
+            rm "$certificate"
+          }
+
+          if [ -n "$APPLE_CERTIFICATE" ]; then
+            import_p12 APPLE_CERTIFICATE "$APPLE_CERTIFICATE" "$APPLE_CERTIFICATE_PASSWORD"
+          fi
+          if [ -n "$APPLE_INSTALLER_CERTIFICATE" ]; then
+            import_p12 APPLE_INSTALLER_CERTIFICATE "$APPLE_INSTALLER_CERTIFICATE" \
+              "${APPLE_INSTALLER_CERTIFICATE_PASSWORD:-$APPLE_CERTIFICATE_PASSWORD}"
+          fi
+
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+
+          echo 'Identities this build can sign with:'
+          security find-identity -v "$keychain"
+
+      - name: Bundle the application
+        working-directory: packages/desktop
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_INSTALLER_SIGNING_IDENTITY: ${{ secrets.APPLE_INSTALLER_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CERTUM_EMAIL: ${{ secrets.CERTUM_EMAIL }}
+          CERTUM_OTP: ${{ secrets.CERTUM_OTP }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VUEPORT_TARGET: ${{ matrix.target }}
+        run: yarn bundle
+      - name: Upload the installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: vueport-${{ matrix.artifact }}
+          if-no-files-found: error
+          path: |
+            packages/desktop/src-tauri/target/**/release/bundle/**/*.dmg
+            packages/desktop/src-tauri/target/**/release/bundle/**/*.pkg
+            packages/desktop/src-tauri/target/**/release/bundle/**/*.msi
+            packages/desktop/src-tauri/target/**/release/bundle/**/*-setup.exe
+            packages/desktop/src-tauri/target/**/release/bundle/**/*.AppImage
+            packages/desktop/src-tauri/target/**/release/bundle/**/*.deb
+            packages/desktop/src-tauri/target/**/release/bundle/**/*.rpm
+            packages/desktop/src-tauri/target/**/release/bundle/**/*.app.tar.gz
+            packages/desktop/src-tauri/target/**/release/bundle/**/*.AppImage.tar.gz
+            packages/desktop/src-tauri/target/**/release/bundle/**/*.nsis.zip
+            packages/desktop/src-tauri/target/**/release/bundle/**/*.msi.zip
+            packages/desktop/src-tauri/target/**/release/bundle/**/*.sig

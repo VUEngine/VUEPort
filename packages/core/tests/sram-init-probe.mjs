@@ -1,36 +1,32 @@
-// Establishes how big a cartridge RAM buffer the core needs, and how much the
-// buffer's initial contents matter.
-//
-// VES used to hand the core an 8 KiB, zero-filled buffer when a ROM had
-// no .srm yet. That is the size of the SRAM chip, but not the size of the
-// window it occupies: only the low byte of each halfword is wired, and the core
-// indexes cart RAM by masked address (core/bus.c: cart.ram[address & ramMask]),
-// so an 8 KiB buffer makes 0x06002000.. mirror onto 0x06000000.. and a game's
-// own writes overwrite each other. Lemur, running the same core, allocates
-// 16 KiB and randomizes every even byte.
-//
-// Booting Zero Racers under the two sizes and three fills shows the split
-// cleanly: every 8 KiB run resumes a bogus saved game, every >=16 KiB run
-// reaches ENTER YOUR NAME, and the fill makes no difference either way.
-//
-// Usage: node scripts/sram-init-probe.mjs "<rom path>" [frames] [out dir]
-//   SHOTS=100,200  frames to write a PNG of
-//   TRACE=1        write a per-frame screen hash list, to find where two
-//                  configurations first diverge
-//   CONFIGS=[...]  JSON array of { label, size, kind } to run instead of the
-//                  default sweep; kind is zero | ff | random-even | random-all
+/**
+ * How big a cartridge RAM buffer the core needs, and whether its initial contents matter. Only the low byte of each
+ * halfword is wired and the core indexes by masked address (core/bus.c: cart.ram[address & ramMask]), so with 8 KiB, the
+ * SRAM chip's size but not its window's, 0x06002000.. mirrors onto 0x06000000.. and a game's writes overwrite each
+ * other. Lemur (same core) allocates 16 KiB and randomizes every even byte. Zero Racers: every 8 KiB run resumes a bogus
+ * saved game, every run with 16 KiB or more reaches ENTER YOUR NAME, whatever the fill.
+ *
+ * Usage: node tests/sram-init-probe.mjs "<rom path>" [frames] [out dir]
+ *   SHOTS=100,200  frames to write a PNG of
+ *   TRACE=1        write a per-frame screen hash list, to find where two configurations first diverge
+ *   CONFIGS=[...]  JSON array of { label, size, kind } to run instead of the default sweep; kind is
+ *                  zero | ff | random-even | random-all
+ */
 import fs from 'fs';
 import zlib from 'zlib';
 import path from 'path';
 import os from 'os';
 
 const romPath = process.argv[2];
+if (!romPath) {
+    console.error('Usage: node tests/sram-init-probe.mjs "<rom path>" [frames] [out dir]');
+    process.exit(1);
+}
 const FRAMES = Number(process.argv[3] ?? 600);
 const outDir = process.argv[4] ?? path.join(os.tmpdir(), 'ves-sram-probe');
 fs.mkdirSync(outDir, { recursive: true });
 
 const corePath = new URL(
-    '../wasm/core.wasm',
+    '../wasm/shrooms/core.wasm',
     import.meta.url
 );
 const coreBytes = fs.readFileSync(corePath);
@@ -39,7 +35,7 @@ const ROM = fs.readFileSync(romPath);
 const CLOCKS_PER_FRAME = 20000000 / 50;
 const WIDTH = 384, HEIGHT = 224;
 
-// Deterministic PRNG so runs are reproducible.
+// deterministic PRNG so runs are reproducible
 function mulberry(seed) {
     return () => {
         seed |= 0; seed = seed + 0x6D2B79F5 | 0;
@@ -91,8 +87,7 @@ async function boot({ label, size, kind, frames = FRAMES }) {
 
     const trace = [];
     const shotFrames = new Set((process.env.SHOTS ?? '').split(',').filter(Boolean).map(Number));
-    // Start (0x1000) and A (0x0004), tapped for six frames each second, so the
-    // boot screens and menus advance without a human at the pad.
+    // Start (0x1000) and A (0x0004), tapped for six frames each second, so boot screens and menus advance unattended
     const AUTO_KEYS = 0x1004;
     for (let frame = 0; frame < frames; frame++) {
         E.vbSetKeys(sim, frame % 50 < 6 ? AUTO_KEYS : 0);

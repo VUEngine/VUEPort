@@ -1,21 +1,11 @@
-// Does the collector build the call tree a known instruction stream implies,
-// and is what it exports structurally sound?
-//
-// callstack-probe.mjs established that calls and returns are recognisable and
-// cheap to follow. This checks the layer above: that following them produces
-// the right tree, that self and total time add up, and that the Firefox
-// Profiler conversion produces tables whose indices all point somewhere.
-//
-// It also decodes a real ROM, because the instruction kinds are the one input
-// the collector cannot sanity-check for itself.
-//
-// Usage: node tests/profile-probe.mjs [path/to/output.vb]
+// checks that the collector builds the call tree a known instruction stream implies, that the Firefox Profiler tables
+// only hold valid indices, and decodes a real ROM, as instruction kinds are the one input the collector cannot
+// sanity-check. Usage: node tests/profile-probe.mjs [output.vb]
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
 
 const repoRoot = new URL('../../../', import.meta.url).pathname;
-/** The emulator's own build, which these probes exercise. */
 const vueport = new URL('../', import.meta.url).pathname;
 const {
     decodeRomKinds,
@@ -40,16 +30,11 @@ const check = (label, actual, expected) => {
 };
 const report = (label, value) => console.log(`  --   ${label}: ${value}`);
 
-// --- 1. A known call tree ---------------------------------------------------
-
 console.log('1. Building a tree from a known stream');
 {
-    // Addresses matter now: a frame is entered at whatever the instruction
-    // after a call is, and closed by arriving back at the call's own return
-    // address. So the stream has to be a plausible walk through memory.
-    //
-    //   main at 0x100 runs, calls a; a runs, calls b; b returns; a returns;
-    //   main calls a a second time, which must land on the *same* node.
+    // a frame is entered at the instruction after a call and closed by arriving back at the call's return
+    // address, so the stream has to be a plausible walk through memory. main at 0x100 calls a, a calls b, b
+    // returns, a returns, main calls a again, which must land on the same node.
     const collector = new VesProfileCollector();
     const stream = [
         [0x100, OTHER], [0x104, OTHER], [0x108, CALL],
@@ -74,8 +59,7 @@ console.log('1. Building a tree from a known stream');
         nodes.filter(node => node.address === 0x200).length, 1);
     check('b hangs off a, not off the root', b.parent, a.id);
 
-    // Charged where they ran: a call belongs to the caller, since it is the
-    // caller executing it.
+    // a call is charged to the caller, since it is the caller executing it
     check('root self time', root.selfSamples, 6);
     check('a self time', a.selfSamples, 8);
     check('b self time', b.selfSamples, 2);
@@ -84,13 +68,10 @@ console.log('1. Building a tree from a known stream');
     check('every instruction is accounted for once', root.totalSamples, stream.length);
 }
 
-// --- 2. Returns that do not look like returns -------------------------------
-
 console.log('\n2. A frame that leaves some other way');
 {
-    // The case that made the address model necessary: a callee that returns
-    // through something other than JMP [r31] — a jump on a saved register, a
-    // reti, a tail call. Arriving at the return address is what closes it.
+    // a callee that returns through something other than JMP [r31] (a jump on a saved register, a reti, a tail
+    // call) is closed by arriving at the return address
     const collector = new VesProfileCollector();
     for (const [address, kind] of [
         [0x100, OTHER], [0x104, CALL],
@@ -107,12 +88,9 @@ console.log('\n2. A frame that leaves some other way');
     check('nothing was left on the stack', collector.overflows, 0);
 }
 
-// --- 3. A runaway stack ------------------------------------------------------
-
 console.log('\n3. A stack that never returns');
 {
-    // Every instruction a call to the next address, so nothing ever arrives at
-    // a return address and the stack only grows.
+    // every instruction is a call to the next address, so nothing ever returns and the stack only grows
     const collector = new VesProfileCollector();
     for (let at = 0; at < 1000; at++) {
         collector.push(0x1000 + at * 8, CALL);
@@ -121,8 +99,6 @@ console.log('\n3. A stack that never returns');
     check('depth is capped rather than unbounded', collector.overflows > 0, true);
     check('every instruction is still charged', collector.sampleCount, 1000);
 }
-
-// --- 4. The Firefox Profiler conversion --------------------------------------
 
 console.log('\n4. Converting for Firefox Profiler');
 {
@@ -147,7 +123,6 @@ console.log('\n4. Converting for Firefox Profiler');
     report('samples', samples.length);
     report('funcs', funcTable.length);
 
-    // Every table says how long it is; every parallel column must agree.
     const columnsAgree = (table, names) => names.every(name => table[name].length === table.length);
     check('stackTable columns agree with its length',
         columnsAgree(stackTable, ['frame', 'prefix', 'category', 'subcategory']), true);
@@ -158,7 +133,6 @@ console.log('\n4. Converting for Firefox Profiler');
     check('samples columns agree with its length',
         columnsAgree(samples, ['stack', 'time', 'weight']), true);
 
-    // Every index points somewhere real.
     check('sample stacks are in range',
         samples.stack.every(index => index >= 0 && index < stackTable.length), true);
     check('stack frames are in range',
@@ -170,15 +144,14 @@ console.log('\n4. Converting for Firefox Profiler');
     check('func names are in the string table',
         funcTable.name.every(index => index >= 0 && index < stringArray.length), true);
 
-    // A prefix must come before its child, or the importer cannot walk it.
+    // a prefix must come before its child, or the importer cannot walk it
     check('every prefix precedes its stack',
         stackTable.prefix.every((prefix, at) => prefix === null || prefix < at), true);
 
-    // The weights must still add up to what was collected.
     const weighed = samples.weight.reduce((total, weight) => total + weight, 0);
     check('sample weights total the instructions collected', weighed, collector.sampleCount);
 
-    // Two things the importer is strict about, both learned the hard way.
+    // two things the importer is strict about, both learned the hard way
     check('no sampleUnits without a threadCPUDelta column',
         !('sampleUnits' in profile.meta) || 'threadCPUDelta' in samples, true);
     check('sample times are not all the same instant',
@@ -186,14 +159,12 @@ console.log('\n4. Converting for Firefox Profiler');
     check('sample times only ever move forward',
         samples.time.every((at, index) => index === 0 || at > samples.time[index - 1]), true);
 
-    // The title is what tells two captures apart, so it has to be the game's.
+    // the title is what tells two captures apart, so it has to be the game's
     check('the profile is titled after what was profiled', profile.meta.product, 'Test Game');
 
     check('it survives a JSON round trip',
         JSON.parse(JSON.stringify(profile)).threads[0].samples.length, samples.length);
 }
-
-// --- 5. Decoding a real ROM --------------------------------------------------
 
 console.log('\n5. Decoding a real ROM');
 {
@@ -220,9 +191,8 @@ console.log('\n5. Decoding a real ROM');
         check('the table covers every halfword', kinds.length, rom.byteLength >> 1);
         check('a real ROM has calls in it', calls > 0, true);
         check('and returns', returns > 0, true);
-        // A ROM is mostly not code — data, assets and padding — so the two
-        // kinds together should be a small share of it. A large share would
-        // mean the opcode test is matching things that are not instructions.
+        // a ROM is mostly data, assets and padding, so a large share of calls and returns would mean the opcode test
+        // matches things that are not instructions
         const share = (calls + returns) / kinds.length;
         report('share of halfwords that decode as call or return', `${(share * 100).toFixed(2)}%`);
         check('they are a minority of the ROM, as code in data should be', share < 0.1, true);

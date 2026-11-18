@@ -1,0 +1,82 @@
+@layer vueport.tokens {
+    :root {
+        /* Type. --vp-font-display is not used by the core yet, it gives a host one name for a heading face */
+        --vp-font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        --vp-font-display: var(--vp-font-ui);
+        --vp-font-code: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        --vp-font-size: 13px;
+        --vp-font-size-code: 12px;
+        --vp-line-height: 22px;
+
+        /* Metrics. Gaps and paddings are multiples and fractions of --vp-space, so it sets the density of everything.
+           The tab metrics must be set: Lumino gives a tab bar exactly its minimum height, so without them the
+           panel headers vanish silently. */
+        --vp-space: 6px;
+        --vp-space-half: calc(var(--vp-space) / 2);
+        --vp-space-x2: calc(var(--vp-space) * 2);
+        --vp-space-x3: calc(var(--vp-space) * 3);
+        --vp-space-x4: calc(var(--vp-space) * 4);
+        --vp-border-width: 1px;
+        --vp-radius: 3px;
+        --vp-radius-small: 2px;
+        --vp-radius-large: 6px;
+        --vp-radius-full: 999px;
+        --vp-control-height: 32px;
+        --vp-icon-size: 16px;
+        --vp-tab-height: 35px;
+        --vp-tab-scrollbar-height: 5px;
+        --vp-tab-scrollbar-rail-height: 7px;
+        --vp-sash-width: 5px;
+        --vp-sash-hover-delay: 300ms;
+        --vp-panel-min-width: 180px;
+        --vp-panel-min-height: 60px;
+        --vp-scrollbar-width: 10px;
+
+        /* Surfaces, ordered from --vp-bg (deepest) via --vp-panel to --vp-header (the strip above a panel). Lighter
+           as they come forward in dark, the other way round in a light theme, hence three names. */
+        --vp-bg: #17171a;
+        --vp-panel: #232329;
+        --vp-chrome: #101012;
+        --vp-header: #1d1d22;
+        --vp-line: #35353d;
+        --vp-line-strong: #43434d;
+        --vp-field-border: #8a8a99;
+        --vp-shadow: rgb(0 0 0 / 55%);
+        --vp-chip: rgb(0 0 0 / 30%);
+
+        /* Text */
+        --vp-text: #e6e6ea;
+        --vp-text-dim: #a8a8b3;
+        --vp-on-accent: #ffffff;
+
+        /* Accent and state. One accent for focus ring, primary button, progress bar, active border and sash */
+        --vp-accent: #d4262c;
+        --vp-accent-hover: #f00;
+        --vp-secondary: #10a2a2;
+        --vp-danger: #e05260;
+        --vp-warning: #d9a441;
+        --vp-success: #5ac26a;
+        --vp-highlight: #33445c;
+        --vp-drop: rgb(212 38 44 / 18%);
+        --vp-code: #d7ba7d;
+
+        /* Series: categorical colors for a bar that shows what a whole is made of. Mid-tones on purpose, they have
+           to read against both the dark and the light track. */
+        --vp-series-1: #4d8fd5;
+        --vp-series-2: #3fa89b;
+        --vp-series-3: #9b7ede;
+        --vp-series-4: #d98f4d;
+        --vp-series-5: #c25b7c;
+        --vp-glow: #000;
+        --vp-ambient-color: #fff;
+
+        /* Interaction */
+        --vp-control: #4e4e56;
+        --vp-hover: #2a2a31;
+        --vp-selected: #3a3a45;
+        --vp-selected-text: #ffffff;
+        --vp-scrollbar-thumb: rgb(230 230 234 / 20%);
+        --vp-scrollbar-thumb-hover: rgb(230 230 234 / 32%);
+        --vp-scrollbar-thumb-active: rgb(230 230 234 / 45%);
+    }
+}

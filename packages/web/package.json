@@ -1,0 +1,30 @@
+{
+  "name": "vueport-web",
+  "version": "1.0.0",
+  "description": "VUEPort as a standalone web application",
+  "license": "MIT",
+  "author": "KR155E <c.radke@posteo.de>",
+  "private": true,
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "clean": "rimraf dist dist-dev",
+    "lint": "eslint --ext ts,tsx src",
+    "lint:fix": "eslint --ext ts,tsx src --fix",
+    "measure:gamepad": "node tools/serve-gamepad-lab.mjs",
+    "measure:rumble": "node tools/serve-rumble-rig.mjs",
+    "start": "node esbuild.mjs --serve",
+    "test:ui": "node tests/desktop-config-probe.mjs && node tests/rom-archive-probe.mjs && node tests/essound-bare-rom-probe.mjs && node tests/retroachievements-probe.mjs && node tests/leaderboards-probe.mjs && node tests/side-strip-probe.mjs && node tests/save-states-probe.mjs && node tests/game-info-cache-probe.mjs && node tests/library-probe.mjs && node tests/library-coverflow-probe.mjs && node tests/library-play-buttons-probe.mjs && node tests/status-bar-probe.mjs && node tests/library-title-probe.mjs && node tests/library-art-probe.mjs && node tests/play-time-probe.mjs && node tests/desktop-library-probe.mjs && node tests/desktop-gamepads-probe.mjs && node tests/library-import-probe.mjs && node tests/recent-roms-probe.mjs && node tests/no-opfs-probe.mjs && node tests/planet-vb-probe.mjs && node tests/library-download-probe.mjs && node tests/close-rom-probe.mjs && node tests/save-transfer-probe.mjs && node tests/layout-probe.mjs && node tests/mobile-probe.mjs && node tests/panel-settings-probe.mjs && node tests/vsu-panel-probe.mjs && node tests/column-table-panel-probe.mjs && node tests/vcu-patch-probe.mjs && node tests/rumble-panel-probe.mjs && node tests/rumble-rig-probe.mjs && node tests/terminal-panel-probe.mjs && node tests/macro-probe.mjs && node tests/movie-probe.mjs && node tests/video-probe.mjs && node tests/cheat-finder-probe.mjs && node tests/debug-strips-probe.mjs && node tests/lockstep-probe.mjs && node tests/two-window-link-probe.mjs && node tests/blocked-audio-probe.mjs && node tests/input-probe.mjs && node tests/gamepad-palette-probe.mjs && node tests/settings-gamepad-probe.mjs && node tests/gamepad-library-probe.mjs && node tests/keyboard-focus-probe.mjs && node tests/anaglyph-probe.mjs && node tests/frame-blending-probe.mjs && node tests/immersion-vbc-probe.mjs && node tests/display-probe.mjs && node tests/api-settings-probe.mjs && node tests/host-theia-probe.mjs && node tests/command-palette-probe.mjs && node tests/vbc-ui-probe.mjs && node tests/color-editor-probe.mjs && node tests/scrollbar-probe.mjs && node tests/csp-probe.mjs && node tests/external-links-probe.mjs && node tests/screen-inspector-probe.mjs && node tests/lan-share-probe.mjs && node tests/desktop-lan-share-probe.mjs",
+    "typecheck": "tsc --noEmit -p .",
+    "watch": "node esbuild.mjs --watch"
+  },
+  "dependencies": {
+    "@lumino/widgets": "2.7.5",
+    "@phosphor-icons/react": "2.0.15",
+    "react": "^18.3.1",
+    "react-dom": "^18.2.0",
+    "vueport-core": "1.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  }
+}

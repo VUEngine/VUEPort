@@ -1,26 +1,20 @@
-// Does the write callback report a 32-bit store, and is the whole value
-// readable at the pointer it hands over?
-//
-// write-callback-probe.mjs pinned the ABI using a byte store to a hardware
-// register. Following a pointer variable — which is how the emulator works out
-// which RumbleEffectSpec a game just started, see setPointerWatch — needs two
-// more things from that same callback: that it fires for ordinary WRAM as well
-// as for hardware registers, and that a word store reports all four bytes
-// rather than just the low one.
-//
-// Usage: node scripts/pointer-watch-probe.mjs
+/**
+ * Does the write callback report a 32-bit store to ordinary WRAM, with the whole value readable at the pointer it hands
+ * over? setPointerWatch follows a pointer variable this way to find the RumbleEffectSpec a game started, so a word store
+ * must report all four bytes. Callback ABI as in write-callback-probe.mjs.
+ * Usage: node tests/pointer-watch-probe.mjs
+ */
 import fs from 'fs';
 
-/** Where the program stores, in WRAM, and what it stores there. */
 const TARGET = 0x05000010;
 const POINTER = 0x07001234;
-/** Proof-of-execution marker, on the path write-callback-probe already pinned down. */
+// proof-of-execution marker, on the path write-callback-probe already pinned down
 const TERMINAL_PORT = 0x02000030;
 const TERMINAL_BYTE = 0x41;
 const TABLE_SLOTS = 16;
 
 const corePath = new URL(
-    '../wasm/core.wasm',
+    '../wasm/shrooms/core.wasm',
     import.meta.url
 );
 
@@ -36,7 +30,7 @@ function check(label, actual, expected) {
     return true;
 }
 
-// --- Patching the table (see write-callback-probe.mjs) -----------------------
+// patching the table, see write-callback-probe.mjs
 
 function readUleb(bytes, at) {
     let result = 0, shift = 0, length = 0, byte;
@@ -75,7 +69,7 @@ function patchTableLimit(bytes, slots) {
 
 const coreBytes = patchTableLimit(fs.readFileSync(corePath), TABLE_SLOTS);
 
-// --- The (i32 x6) -> i32 trampoline -----------------------------------------
+// the (i32 x6) -> i32 trampoline
 
 function uleb(value) {
     const out = [];
@@ -117,21 +111,8 @@ function makeTrampoline(onCall) {
     ).exports.t;
 }
 
-// --- A V810 program that stores a pointer-sized value to WRAM ----------------
-
-/**
- *   at 0xFFFFFFC0:
- *     movhi 0x0200, r0, r10      r10 = 0x02000000
- *     movea 0x0041, r0, r13
- *     st.b  r13, 0x30[r10]       terminal port: "the program ran"
- *     movhi 0x0700, r0, r11
- *     movea 0x1234, r11, r11     r11 = 0x07001234, a plausible ROM pointer
- *     movhi 0x0500, r0, r12      r12 = 0x05000000, WRAM
- *     st.w  r11, 0x0010[r12]     the store being watched
- *     br    0
- *   at 0xFFFFFFF0 (reset):
- *     jr    -0x30
- */
+// marks the terminal port, then stores the plausible ROM pointer 0x07001234 to WRAM with st.w and spins; reset jumps
+// back to it
 function buildRom() {
     const size = 0x100000;
     const rom = new Uint8Array(size);
@@ -163,8 +144,6 @@ function buildRom() {
 }
 
 const ROM = buildRom();
-
-// --- Run ---------------------------------------------------------------------
 
 const { instance } = await WebAssembly.instantiate(coreBytes, {
     env: { emscripten_notify_memory_growth: () => { } }

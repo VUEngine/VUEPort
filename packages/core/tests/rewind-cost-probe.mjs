@@ -1,17 +1,12 @@
-// How much memory does rewind actually need?
-//
-// A rewind snapshot is the whole 1.85 MiB state struct. Whether that has to be
-// compressed depends on how much of it really changes between frames, which
-// only a real game answers -- a blank cartridge barely changes state at all and
-// makes every compression figure meaningless.
-//
-// Usage: node scripts/rewind-cost-probe.mjs [path/to/rom.vb]
+// how much memory rewind needs. A snapshot is the whole 1.85 MiB state struct; how well it compresses
+// depends on how much changes per frame, which only a real game answers (a blank cartridge barely changes).
+// Usage: node tests/rewind-cost-probe.mjs [path/to/rom.vb]
 import fs from 'fs';
 import zlib from 'zlib';
 
 const romPath = process.argv[2];
 if (!romPath) {
-    console.error('Usage: node scripts/rewind-cost-probe.mjs <path/to/rom.vb>');
+    console.error('Usage: node tests/rewind-cost-probe.mjs <path/to/rom.vb>');
     process.exit(1);
 }
 
@@ -20,7 +15,7 @@ const F32 = 5, SAMPLES = 834, BREAK_FRAME = 1;
 const BOOT_FRAMES = 250;  // ~5s, to get past boot and into the game
 const SAMPLE_FRAMES = 150; // ~3s of measurement
 
-const corePath = '../wasm/core.wasm';
+const corePath = '../wasm/shrooms/core.wasm';
 const { instance } = await WebAssembly.instantiate(fs.readFileSync(corePath), {
     env: { emscripten_notify_memory_growth: () => { } }
 });
@@ -71,13 +66,8 @@ console.log(`done (${framesSeen} frames drawn)`);
 console.log(`emulation throughput  : ${(BOOT_FRAMES * 20 / bootMs).toFixed(1)}x real time ` +
     `(${(BOOT_FRAMES / (bootMs / 1000)).toFixed(0)} fps)\n`);
 
-/**
- * Sparse XOR run encoding, as implemented in the worker.
- *
- * Emits [uint32 offset][uint32 length][length XOR bytes] per differing run,
- * merging runs separated by less than `gap` bytes so that scattered single-byte
- * changes do not each pay the 8 byte header.
- */
+// sparse XOR run encoding as in the worker: [uint32 offset][uint32 length][length XOR bytes] per run,
+// merging runs less than `gap` bytes apart so scattered single bytes do not each pay the 8 byte header
 function encodeSparse(previousState, currentState, gap) {
     const runs = [];
     let start = -1, lastDiff = -1;

@@ -1,16 +1,11 @@
-// Link cable wiring: two simulations in one core, peered over the link port.
-//
-// Verifies what can be checked without a ROM that drives the link port --
-// that peering is bidirectional and survives, that both machines really do
-// emulate together in one core, and that a linked pair snapshots and restores
-// as a unit. Actual data crossing the cable needs a link-aware ROM.
-//
-// Usage: node scripts/link-probe.mjs [path/to/rom.vb]
+// link cable wiring: two simulations in one core, peered over the link port. Checks that peering is bidirectional and
+// survives, both machines emulate together and a linked pair snapshots and restores as a unit; data crossing the cable
+// needs a link-aware ROM. Usage: node tests/link-probe.mjs [rom.vb]
 import fs from 'fs';
 
 const CLOCKS = 400000, F32 = 5, SAMPLES = 834, RAM_LEN = 8192;
 
-const corePath = '../wasm/core.wasm';
+const corePath = new URL('../wasm/shrooms/core.wasm', import.meta.url);
 const { instance } = await WebAssembly.instantiate(fs.readFileSync(corePath), {
     env: { emscripten_notify_memory_growth: () => { } }
 });
@@ -44,8 +39,7 @@ function makeSim() {
 const a = makeSim();
 const b = makeSim();
 
-// Both simulations are driven by one Emulate() call, as the worker does for a
-// linked session.
+// one Emulate() call drives both simulations, as the worker does for a linked session
 const simsPtr = E.Realloc(0, 8);
 const clocksPtr = E.Realloc(0, 4);
 const pointers = new Uint32Array(E.memory.buffer, simsPtr, 2);
@@ -95,7 +89,7 @@ runBoth(60);
 const expectedA = new Uint8Array(E.memory.buffer, a.sim, SIZE).slice();
 const expectedB = new Uint8Array(E.memory.buffer, b.sim, SIZE).slice();
 
-// Restore both, exactly as the widget does for a linked pair.
+// restore both, exactly as the widget does for a linked pair
 const restore = (target, blob) => {
     new Uint8Array(E.memory.buffer, target.sim, SIZE).set(blob);
     E.vbSetCartROM(target.sim, target.romPtr, rom.length);
@@ -124,8 +118,7 @@ E.vbSetPeer(a.sim, 0);
 E.vbSetPeer(b.sim, 0);
 check('A released', E.vbGetPeer(a.sim), 0);
 check('B released', E.vbGetPeer(b.sim), 0);
-// A program counter is a poor liveness test: a game loop returns to the same
-// instruction every frame, so compare whole states instead.
+// a game loop returns to the same instruction every frame, so compare whole states instead of the PC
 const beforeA = new Uint8Array(E.memory.buffer, a.sim, SIZE).slice();
 const beforeB = new Uint8Array(E.memory.buffer, b.sim, SIZE).slice();
 runBoth(10);

@@ -1,83 +1,69 @@
 import { Emitter, Event } from '../common/emulator-events';
+import { cheatNotes, cheatTitle } from '../common/emulator-catalog-nls';
 import { VueportStorage } from '../common/emulator-host';
 import {
+    anchorCheatCodeToRomTop,
     builtInCheatsFor,
     CHEAT_DATABASE,
-    VesBuiltInCheat,
-    VesCheatDatabaseEntry,
+    BuiltInCheat,
+    CheatDatabaseEntry,
 } from '../common/emulator-cheat-database';
 import {
     enabledVesCheatCodes,
     parseVesCheatCodes,
     parseVesCheatFile,
     serializeVesCheatFile,
-    VesCheat,
+    Cheat,
     vesCheatCodeBytes,
 } from '../common/emulator-cheats';
-import { VesVbSim } from './core/vb-core';
+import { Sim } from './core/vb-core';
+import { VbCheatWrite } from '../common/vb-protocol';
+import {
+    readVesBrowserState,
+    browserStateStorage,
+    browserStateId,
+    browserStateKey,
+    writeVesBrowserState,
+} from './emulator-browser-state';
 
-/**
- * One emulator's cheats: the list, the file it lives in, and pushing the
- * enabled ones into the core.
- *
- * Held by the widget rather than by the Cheats panel, for two reasons: cheats
- * stay in effect while that panel is closed, and the file has to be loaded as
- * soon as the ROM is, whether or not anyone has opened the panel. The panel
- * edits through this and redraws on onDidChange.
- *
- * The file is `<rom>.cht` beside the ROM, the same convention save RAM
- * follows, in the format `vueport-cheats.ts` documents — so cheats
- * written by RetroArch, or by hand from gamehacking.org, are picked up as they
- * are. It exists only while there are cheats to put in it: the first one
- * creates it and removing the last one deletes it, rather than leaving a file
- * saying there are none beside every ROM that was ever run.
- */
-export class VesEmulatorCheatStore {
+interface StoredCheatState {
+    enabled?: string[];
+}
 
-    /** The player's own, which is what the `.cht` file beside the ROM holds. */
-    protected custom: VesCheat[] = [];
-    /** What the emulator ships for this ROM, if it knows it. */
-    protected builtIn: VesCheat[] = [];
-    /** Where the built-ins' on/off state is kept, since the `.cht` cannot hold it. */
-    protected statePath: string | undefined;
-    protected sim: VesVbSim | undefined;
+// held by the widget rather than the Cheats panel, as cheats stay active while the panel is closed. User cheats live
+// in `<rom>.cht` beside the ROM (format in emulator-cheats.ts, RetroArch/gamehacking.org compatible), which only
+// exists while there are any
+export class CheatStore {
+
+    protected custom: Cheat[] = [];
+    protected builtIn: Cheat[] = [];
+    protected browserStateKey: string | undefined;
+    protected sim: Sim | undefined;
+    // set while a link session owns where these writes go, see setScheduler
+    protected scheduler: ((codes: VbCheatWrite[]) => boolean) | undefined;
     protected uri: string | undefined;
-    /** Set once a file has been read, so a first save cannot precede a load. */
+    // set once a file has been read, so a save can't happen before the load
     protected loaded = false;
-    /**
-     * Saves run one after another rather than at once: an edit and the edit
-     * undoing it are a write and a delete, and the wrong order would leave the
-     * file behind.
-     */
+    // saves are serialized: an edit and its undo are a write and a delete, and the wrong order would leave the file
     protected persisting: Promise<void> = Promise.resolve();
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
-    /** Fires whenever the list changes, whatever changed it. */
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
 
     constructor(
         protected readonly storage: VueportStorage,
-        /**
-         * The cheats to ship. Defaults to the emulator's own, and is a
-         * parameter so a host can add to them — and so this can be given a
-         * fixture rather than whatever happens to be in the database today.
-         */
-        protected readonly database: VesCheatDatabaseEntry[] = CHEAT_DATABASE,
+        protected readonly database: CheatDatabaseEntry[] = CHEAT_DATABASE,
+        protected readonly stateStorage?: browserStateStorage,
     ) { }
 
-    /**
-     * Every cheat, the shipped ones first.
-     *
-     * One list rather than two, because a player looking for a cheat does not
-     * care where it came from — only the few operations that would change a
-     * built-in care, and they check `builtIn` (see `remove` and `update`).
-     */
-    get list(): ReadonlyArray<VesCheat> {
+    // built-in ones first, in one list as users don't care where a cheat came from; remove and update check
+    // `builtIn` themselves
+    get list(): ReadonlyArray<Cheat> {
         return [...this.builtIn, ...this.custom];
     }
 
-    /** Where a list index falls: a shipped cheat, or one of the player's. */
-    protected at(index: number): { cheat: VesCheat, custom: number } | undefined {
+    // resolves a list index; `custom` is the index into the user's cheats, -1 for a built-in one
+    protected at(index: number): { cheat: Cheat, custom: number } | undefined {
         if (index < 0) {
             return undefined;
         }
@@ -88,12 +74,10 @@ export class VesEmulatorCheatStore {
         return this.custom[custom] ? { cheat: this.custom[custom], custom } : undefined;
     }
 
-    /** Where the cheats are stored, once a ROM is known. */
     get filePath(): string | undefined {
         return this.uri;
     }
 
-    /** The file's name, for the panel to show. */
     get fileName(): string | undefined {
         return this.uri === undefined ? undefined : this.storage.name(this.uri);
     }
@@ -102,108 +86,143 @@ export class VesEmulatorCheatStore {
         return this.loaded;
     }
 
-    /**
-     * Read what belongs to a ROM, replacing whatever was loaded before.
-     *
-     * Three things, from three places: the player's cheats from the `.cht`
-     * file beside the ROM, the shipped ones from the database, and which of
-     * the shipped ones are switched on from a small file of its own. That last
-     * one exists because the `.cht` format has nowhere to say "this is one of
-     * yours and it is on" — writing a built-in into it would make it the
-     * player's copy, editable and deletable and frozen at today's version.
-     *
-     * `romId` is the ROM's CRC32; without one the database is simply not
-     * consulted, which is the ordinary case for homebrew and for a build in
-     * progress.
-     */
-    async load(romPath: string, romId?: string): Promise<void> {
+    // on/off comes from browser storage only, never from `cheatN_enable` in the file. Without `romId` (CRC32) the
+    // database is skipped (homebrew, work in progress); `romSize` is the unpatched length, so built-in ROM writes
+    // still land when a patch has grown the ROM (see anchorCheatCodeToRomTop)
+    async load(romPath: string, romId?: string, romSize?: number): Promise<void> {
         const directory = this.storage.parent(romPath);
         const stem = this.storage.stem(romPath);
         this.uri = this.storage.join(directory, `${stem}.cht`);
-        this.statePath = this.storage.join(directory, `${stem}.vueport-cheats.json`);
+        this.browserStateKey = browserStateKey('cheats', romPath);
         this.custom = [];
         this.builtIn = [];
         try {
             if (await this.storage.exists(this.uri)) {
                 this.custom = parseVesCheatFile(await this.storage.readText(this.uri));
             }
-            this.builtIn = this.readBuiltIn(romId, await this.readEnabledBuiltIns());
+            this.builtIn = this.readBuiltIn(romId, romSize);
+            const stored = readVesBrowserState<StoredCheatState>(
+                this.stateStorage, this.browserStateKey);
+            this.restoreEnabled(Array.isArray(stored?.enabled)
+                ? new Set(stored.enabled.filter(id => typeof id === 'string'))
+                : new Set());
             this.loaded = true;
         } catch (error) {
-            // A cheat file that cannot be read is not worth failing a launch
-            // over: the emulator runs, with no cheats, and says why.
+            // an unreadable cheat file is not worth failing a launch over: run without cheats and say why
             console.warn(`[emulator] could not read cheats from ${this.uri}:`, error);
             this.loaded = false;
         }
-        this.changed(false);
+        this.changed(false, false);
     }
 
-    /** The shipped cheats for a ROM, as cheats, with their state restored. */
-    protected readBuiltIn(romId: string | undefined, enabled: Set<string>): VesCheat[] {
-        return builtInCheatsFor(romId, this.database).map((cheat: VesBuiltInCheat) => ({
-            description: cheat.description,
-            enabled: enabled.has(cheat.id),
-            // Parsed from the published form, so a database entry can be
-            // pasted from a cheat list unchanged — the same text the `.cht`
-            // file holds.
-            codes: parseVesCheatCodes(cheat.codes),
+    // all off until restoreEnabled
+    protected readBuiltIn(romId: string | undefined, romSize?: number): Cheat[] {
+        return builtInCheatsFor(romId, this.database).map((cheat: BuiltInCheat) => ({
+            // localized, which works because only the id of a built-in cheat is ever stored (see stateIds)
+            description: cheatTitle(cheat),
+            enabled: false,
+            // parsed from the published form, so database entries can be pasted from a cheat list as they are
+            codes: parseVesCheatCodes(cheat.codes)
+                .map(code => romSize === undefined ? code : anchorCheatCodeToRomTop(code, romSize)),
+            notes: cheatNotes(cheat),
             builtIn: true,
             id: cheat.id,
         }));
     }
 
-    /** Which shipped cheats were left switched on, from the file beside the ROM. */
-    protected async readEnabledBuiltIns(): Promise<Set<string>> {
-        if (!this.statePath || !await this.storage.exists(this.statePath)) {
-            return new Set();
-        }
-        try {
-            const stored = JSON.parse(await this.storage.readText(this.statePath));
-            return new Set(Array.isArray(stored?.enabled) ? stored.enabled : []);
-        } catch (error) {
-            // Nothing here is worth failing over: the worst case is that some
-            // shipped cheats come up switched off.
-            console.warn(`[emulator] could not read ${this.statePath}:`, error);
-            return new Set();
-        }
+    // stable-enough ids for user cheats without adding ids to the `.cht` file
+    protected stateIds(): string[] {
+        const counts = new Map<string, number>();
+        const custom = this.custom.map(cheat => {
+            const base = JSON.stringify([
+                cheat.description,
+                cheat.notes ?? '',
+                cheat.codes.map(code => [code.address, code.value, code.digits]),
+            ]);
+            const occurrence = counts.get(base) ?? 0;
+            counts.set(base, occurrence + 1);
+            return `custom:${browserStateId(base)}:${occurrence}`;
+        });
+        return [
+            ...this.builtIn.map(cheat => `built-in:${cheat.id}`),
+            ...custom,
+        ];
     }
 
-    /** The simulation the enabled cheats apply to, or undefined once it is gone. */
-    setSim(sim: VesVbSim | undefined): void {
+    protected restoreEnabled(enabled: Set<string>): void {
+        const ids = this.stateIds();
+        this.builtIn = this.builtIn.map((cheat, index) => ({ ...cheat, enabled: enabled.has(ids[index]) }));
+        this.custom = this.custom.map((cheat, index) => ({
+            ...cheat,
+            enabled: enabled.has(ids[this.builtIn.length + index]),
+        }));
+    }
+
+    protected saveBrowserState(): boolean {
+        const ids = this.stateIds();
+        const enabled = this.list.flatMap((cheat, index) => cheat.enabled ? [ids[index]] : []);
+        return writeVesBrowserState(
+            this.stateStorage, this.browserStateKey, { enabled }, this.list.length === 0);
+    }
+
+    setSim(sim: Sim | undefined): void {
         this.sim = sim;
         this.apply();
     }
 
+    // during a link session the writes go through it, as they must reach the mirror machine on the same frame or the
+    // two diverge. The scheduler returns false if it couldn't book them, then they go straight in; undefined goes back
+    // to writing directly, as when leaving a session
+    setScheduler(scheduler: ((codes: VbCheatWrite[]) => boolean) | undefined): void {
+        // deliberately not re-applying: on joining, running cheats travel as the session's standing edits, and on
+        // leaving, the switches made during it already went through
+        this.scheduler = scheduler;
+    }
+
+    // what apply pushes; a link session sends the same list to the other window when a run starts (standingEdits in
+    // link-session.ts)
+    get writes(): VbCheatWrite[] {
+        return enabledVesCheatCodes([...this.list]).map(code => ({
+            address: code.address,
+            value: code.value,
+            bytes: vesCheatCodeBytes(code),
+        }));
+    }
+
     add(description: string): number {
         this.custom.push({ description, enabled: false, codes: [] });
-        this.changed();
+        this.changed(true, true);
         return this.list.length - 1;
     }
 
-    /**
-     * Take one of the player's cheats away.
-     *
-     * A shipped cheat is not the player's to remove — the next release may
-     * correct it, and a copy deleted here would come back anyway — so this
-     * quietly does nothing for one. The panel does not offer it either; this
-     * is the guard behind that, not the whole of it.
-     */
+    // imports as the user's own cheats, all off whatever the file says, as an import shouldn't switch writes on
+    importCheats(cheats: readonly Cheat[]): number {
+        const added = cheats
+            .filter(cheat => cheat.codes.length > 0)
+            .map(cheat => ({
+                description: cheat.description,
+                enabled: false,
+                codes: [...cheat.codes],
+            }));
+        this.custom.push(...added);
+        if (added.length > 0) {
+            this.changed(true, true);
+        }
+        return added.length;
+    }
+
+    // a built-in cheat can't be removed (it would come back with the next release); the panel doesn't offer it either
     remove(index: number): void {
         const found = this.at(index);
         if (!found || found.custom < 0) {
             return;
         }
         this.custom.splice(found.custom, 1);
-        this.changed();
+        this.changed(true, true);
     }
 
-    /**
-     * Change one cheat: its name, whether it is on, or its codes.
-     *
-     * On a shipped cheat only `enabled` takes effect: what it is called and
-     * what it writes are the database's to say.
-     */
-    update(index: number, patch: Partial<VesCheat>): void {
+    // on a built-in cheat only `enabled` takes effect, name and writes come from the database
+    update(index: number, patch: Partial<Cheat>): void {
         const found = this.at(index);
         if (!found) {
             return;
@@ -216,34 +235,41 @@ export class VesEmulatorCheatStore {
         } else {
             this.custom[found.custom] = { ...found.cheat, ...patch, builtIn: undefined, id: undefined };
         }
-        this.changed();
+        const definitionChanged = found.custom >= 0
+            && Object.keys(patch).some(key => key !== 'enabled');
+        this.changed(definitionChanged, true);
     }
 
-    /**
-     * Push the enabled writes into the core, replacing whatever was there.
-     *
-     * The core repeats them at every frame break for as long as they are set,
-     * so this is the only call needed — there is no per-frame work on this
-     * side at all.
-     */
+    // for hardcore mode, as an active cheat would make following unlocks unearned
+    disableAll(): void {
+        let any = false;
+        const off = (cheat: Cheat): Cheat => {
+            if (!cheat.enabled) {
+                return cheat;
+            }
+            any = true;
+            return { ...cheat, enabled: false };
+        };
+        this.builtIn = this.builtIn.map(off);
+        this.custom = this.custom.map(off);
+        if (any) {
+            this.changed(false, true);
+        }
+    }
+
+    // the core repeats the writes at every frame break, so there is no per-frame work here
     protected apply(): void {
-        this.sim?.setCheats(enabledVesCheatCodes([...this.list]).map(code => ({
-            address: code.address,
-            value: code.value,
-            bytes: vesCheatCodeBytes(code),
-        })));
+        const codes = this.writes;
+        // a link session books them for a frame both windows can still reach, and only falls through if it can't
+        if (this.scheduler?.(codes)) {
+            return;
+        }
+        this.sim?.setCheats(codes);
     }
 
-    /**
-     * Write the file back, or take it away once the last cheat is gone.
-     *
-     * Saving on every edit is deliberate: a cheat is a few bytes of text, and
-     * a list that quietly failed to outlive the window it was typed in would
-     * be worse than a rare redundant write. A load that failed does not save,
-     * so a file that could not be read is neither overwritten from an empty
-     * list nor deleted.
-     */
-    protected async save(): Promise<void> {
+    // saved on every edit, with all switches off (those live in browser storage); deletes the file after the last
+    // cheat. Skipped after a failed load, so an unreadable file is neither overwritten nor deleted
+    protected async saveDefinitions(): Promise<void> {
         const uri = this.uri;
         if (!uri || !this.loaded) {
             return;
@@ -254,46 +280,21 @@ export class VesEmulatorCheatStore {
                     await this.storage.delete(uri);
                 }
             } else {
-                await this.storage.writeText(uri, serializeVesCheatFile(this.custom));
+                await this.storage.writeText(uri, serializeVesCheatFile(
+                    this.custom.map(cheat => ({ ...cheat, enabled: false }))));
             }
         } catch (error) {
             console.warn(`[emulator] could not store cheats in ${uri}:`, error);
         }
-        await this.saveEnabledBuiltIns();
     }
 
-    /**
-     * Remember which shipped cheats are switched on.
-     *
-     * Kept apart from the `.cht` file rather than in it: that file is the
-     * player's own list, in a format other emulators read, and a built-in
-     * written into it would stop being the database's — it would no longer
-     * follow a correction, and it would become deletable. Only the ids go
-     * here; the cheats themselves come from the database every time.
-     */
-    protected async saveEnabledBuiltIns(): Promise<void> {
-        const path = this.statePath;
-        if (!path) {
-            return;
-        }
-        const enabled = this.builtIn.filter(cheat => cheat.enabled).map(cheat => cheat.id);
-        try {
-            if (enabled.length === 0) {
-                if (await this.storage.exists(path)) {
-                    await this.storage.delete(path);
-                }
-                return;
-            }
-            await this.storage.writeText(path, JSON.stringify({ enabled }, undefined, 2) + '\n');
-        } catch (error) {
-            console.warn(`[emulator] could not store cheat state in ${path}:`, error);
-        }
-    }
-
-    protected changed(persist = true): void {
+    protected changed(persistDefinitions = true, persistState = true): void {
         this.apply();
-        if (persist) {
-            this.persisting = this.persisting.then(() => this.save());
+        if (persistState) {
+            this.saveBrowserState();
+        }
+        if (persistDefinitions) {
+            this.persisting = this.persisting.then(() => this.saveDefinitions());
         }
         this.onDidChangeEmitter.fire();
     }

@@ -1,10 +1,6 @@
-// End-to-end rewind test against a real game, using the shipped codec from
-// lib/emulator/worker/vb-rewind.js rather than a reimplementation.
-//
-// Plays forward capturing reverse deltas, then rewinds the whole way and
-// asserts every restored state is byte-identical to what was recorded live.
-//
-// Usage: node scripts/rewind-probe.mjs <path/to/rom.vb>
+// end-to-end rewind test on a real game with the shipped codec (lib/emulator/worker/vb-rewind.js): plays forward
+// capturing reverse deltas, rewinds all the way and asserts every restored state matches the live one.
+// Usage: node tests/rewind-probe.mjs <path/to/rom.vb>
 import fs from 'fs';
 import { createRequire } from 'node:module';
 
@@ -14,7 +10,7 @@ const { encodeDelta, applyDelta, createRunScratch } =
 
 const romPath = process.argv[2];
 if (!romPath) {
-    console.error('Usage: node scripts/rewind-probe.mjs <path/to/rom.vb>');
+    console.error('Usage: node tests/rewind-probe.mjs <path/to/rom.vb>');
     process.exit(1);
 }
 
@@ -22,7 +18,7 @@ const CLOCKS = 400000, F32 = 5, SAMPLES = 834, BREAK_FRAME = 1;
 const BOOT_FRAMES = 250;
 const CAPTURES = 200;
 
-const corePath = '../wasm/core.wasm';
+const corePath = '../wasm/shrooms/core.wasm';
 const { instance } = await WebAssembly.instantiate(fs.readFileSync(corePath), {
     env: { emscripten_notify_memory_growth: () => { } }
 });
@@ -53,7 +49,7 @@ function runFrame() {
     let guard = 0;
     while (new Uint32Array(E.memory.buffer, clocksPtr, 1)[0] !== 0 && guard++ < 200000) {
         E.Emulate(simsPtr, 1, clocksPtr);
-        if (E.GetBreaks(sim) & BREAK_FRAME) { /* frame drawn */ }
+        if (E.GetBreaks(sim) & BREAK_FRAME) { } // frame drawn
     }
 }
 
@@ -61,7 +57,7 @@ const live = () => new Uint8Array(E.memory.buffer, sim, SIZE);
 
 for (let i = 0; i < BOOT_FRAMES; i++) runFrame();
 
-// --- Play forward, capturing exactly as VesVbWorker#captureRewindEntry does.
+// play forward, capturing exactly as Worker#captureRewindEntry does
 const scratch = createRunScratch();
 let mirror = live().slice();
 const entries = [];
@@ -85,12 +81,11 @@ console.log(`delta bytes: ${(bytes / 1024).toFixed(1)} KiB total, ` +
 console.log(`vs raw     : ${(CAPTURES * SIZE / 1048576).toFixed(0)} MiB, ` +
     `so ${(CAPTURES * SIZE / bytes).toFixed(1)}x smaller\n`);
 
-// --- Rewind the whole way, exactly as VesVbWorker#rewindStep does.
+// rewind the whole way, exactly as Worker#rewindStep does
 let mismatches = 0;
 let firstMismatch = -1;
 for (let i = CAPTURES - 1; i >= 0; i--) {
     applyDelta(mirror, entries.pop());
-    // The worker copies the mirror straight back into the simulation.
     live().set(mirror);
 
     const expected = truth[i];
@@ -109,7 +104,7 @@ console.log(`steps taken            : ${CAPTURES}`);
 console.log(`states byte-identical  : ${CAPTURES - mismatches} / ${CAPTURES}`);
 if (mismatches) console.log(`first mismatch at step : ${firstMismatch}`);
 
-// The emulator must still run correctly from a rewound state.
+// the emulator must still run correctly from a rewound state
 E.vbSetCartROM(sim, romPtr, rom.length);
 E.vbSetCartRAM(sim, ramPtr, 8192);
 E.vbSetSamples(sim, samplesPtr, F32, SAMPLES);

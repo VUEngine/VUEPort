@@ -1,72 +1,52 @@
 import { VB_FRAME_RATE } from '../common/vb-constants';
-import { VesVbCore } from './core/vb-core';
+import { Core } from './core/vb-core';
 
-/**
- * Everything the time controls read out of the emulator's settings, gathered
- * once so this has no opinion about where settings come from.
- */
 export interface EmulatorTimeSettings {
-    /** How many times real time fast forward runs at. */
     fastForwardRatio: number;
-    /** The divisor slow motion runs at. */
     slowMotionRatio: number;
     rewindEnabled: boolean;
-    /** Frames of emulation covered by one entry of rewind history. */
+    // frames of emulation covered by one entry of rewind history
     rewindGranularity: number;
     rewindBufferBytes: number;
 }
 
-/** The part of ESSound playback that has to follow the machine's clock. */
+// the part of ESSound playback that has to follow the machine's clock
 export interface EmulatorTimeAudio {
     setSpeed(speed: number): void;
     setRewinding(rewinding: boolean): void;
-    /** Wind the tracks back by however much emulated time was given up. */
     rewind(seconds: number): void;
 }
 
-/** What the time controls need from the emulator they pace. */
 export interface EmulatorTimeControlHost {
-    readonly core?: VesVbCore;
+    readonly core?: Core;
     readonly esSound: EmulatorTimeAudio;
-    /** False before the ROM has booted. */
-    readonly loaded: boolean;
+    // false before the ROM has booted. Not `loaded`: Theia takes every BaseWidget for a PreviewableWidget and sets
+    // `loaded = true` when it becomes the active tab, which the studio's emulator is
+    readonly romLoaded: boolean;
     readonly paused: boolean;
     readonly fastForward: boolean;
     readonly slowMotion: boolean;
-    /** True once the emulator is being torn down, so nothing should redraw. */
     readonly isDisposed: boolean;
     timeSettings(): EmulatorTimeSettings;
-    /** Something changed that the chrome should show. */
     onDidChange(): void;
     onError(message: string): void;
 }
 
-/**
- * Speed, rewind, and the ordering of the transitions between running and
- * suspended.
- *
- * Kept together because they are the same concern seen three ways: all three
- * decide how fast emulated time passes, and all three do it by talking to the
- * core rather than to any simulation. Reading settings through
- * `EmulatorTimeSettings` rather than a preference service is what lets this
- * move to a host that has no such thing.
- */
+// speed, rewind and the ordering of run/suspend transitions, which all decide how fast emulated time passes by
+// talking to the core. Settings come through EmulatorTimeSettings, so this works in hosts without a preference service
 export class EmulatorTimeControl {
 
-    /** Fallbacks for settings that are unset or meaningless. */
     static readonly DEFAULT_FAST_FORWARD_RATIO = 4;
     static readonly DEFAULT_SLOW_MOTION_RATIO = 3;
-    /** How much history a single rewind tick may make up for after a stall. */
+    // how much history a single rewind tick may make up for after a stall
     static readonly REWIND_MAX_CATCHUP_MS = 100;
 
-    /** True from the moment rewind input is pressed until it is released. */
     rewinding = false;
     protected rewindHandle?: number;
-    /** Timestamp of the last rewind tick, for pacing playback by the wall clock. */
     protected rewindLastTick = 0;
-    /** History entries owed from earlier ticks, kept fractional so pacing does not drift. */
+    // history entries owed from earlier ticks, kept fractional so pacing does not drift
     protected rewindOwed = 0;
-    /** Serializes run/suspend, so a release can never overtake its own press. */
+    // serializes run/suspend, so a release can never overtake its own press
     protected coreTransition: Promise<void> = Promise.resolve();
 
     constructor(protected readonly host: EmulatorTimeControlHost) { }
@@ -86,8 +66,7 @@ export class EmulatorTimeControl {
             speed = 1 / (ratio > 1 ? ratio : EmulatorTimeControl.DEFAULT_SLOW_MOTION_RATIO);
         }
         await this.host.core?.setSpeed(speed);
-        // ESSound runs at the machine's speed, so fast forward and slow motion
-        // carry its audio with them.
+        // ESSound runs at the machine's speed, so fast forward and slow motion carry its audio with them
         this.host.esSound.setSpeed(speed);
     }
 
@@ -100,22 +79,14 @@ export class EmulatorTimeControl {
         );
     }
 
-    /**
-     * Rewinding suspends normal emulation and walks the history backwards for as
-     * long as the input is held.
-     *
-     * Whether it is held is tracked in a flag rather than in the animation frame
-     * handle, because both the suspend and every step are round trips to the
-     * worker: a release landing while one is in flight would otherwise be lost,
-     * and the loop would keep running until it had eaten the entire history.
-     */
+    // whether rewind is held is tracked in a flag rather than the animation frame handle, as suspend and every step are
+    // worker round trips: a release landing during one would be lost and the loop would eat the entire history
     startRewinding(): void {
         if (
             this.rewinding ||
             !this.host.core ||
-            !this.host.loaded ||
-            // With no history being recorded there is nothing to walk back through,
-            // and suspending for the length of the hold would just look like a freeze.
+            !this.host.romLoaded ||
+            // with no history recorded, suspending for the hold would just look like a freeze
             !this.isRewindEnabled()
         ) {
             return;
@@ -123,15 +94,12 @@ export class EmulatorTimeControl {
         this.rewinding = true;
         this.host.esSound.setRewinding(true);
         this.rewindLastTick = 0;
-        // Owe one entry up front, so even a tap steps back immediately.
+        // owe one entry up front, so even a tap steps back immediately
         this.rewindOwed = 1;
-        // Lights the toolbar button up for the length of the hold, whether it was
-        // the button or the keyboard that started it.
         this.host.onDidChange();
         this.queueCoreTransition(async core => {
             await core.suspend();
-            // The input may already have been released while the core was still
-            // suspending, in which case the queued resume takes it from here.
+            // the input may already have been released while suspending, then the queued resume takes it from here
             if (this.rewinding) {
                 this.rewindHandle = requestAnimationFrame(now => { this.rewindTick(now); });
             }
@@ -143,14 +111,12 @@ export class EmulatorTimeControl {
             return;
         }
         this.rewinding = false;
-        // Winds the tracks back by everything the core gave up, and starts them
-        // again if the machine is running.
         this.host.esSound.setRewinding(false);
         if (this.rewindHandle !== undefined) {
             cancelAnimationFrame(this.rewindHandle);
             this.rewindHandle = undefined;
         }
-        // Not on the way out: tearing the session down stops any rewind with it.
+        // not on the way out: tearing the session down stops any rewind with it
         if (!this.host.isDisposed) {
             this.host.onDidChange();
         }
@@ -161,21 +127,14 @@ export class EmulatorTimeControl {
         });
     }
 
-    /**
-     * Play the history back at the speed it was recorded at.
-     *
-     * Pacing is by elapsed time rather than one entry per animation frame: the
-     * machine runs at VB_FRAME_RATE and an entry covers `granularity` frames of
-     * it, so a 120 Hz display would otherwise rewind at more than twice speed and
-     * tear through a minute of history in seconds.
-     */
+    // paced by elapsed time rather than one entry per animation frame, as an entry covers `granularity` frames at
+    // VB_FRAME_RATE and a 120 Hz display would otherwise rewind at more than twice speed
     protected async rewindTick(now: number): Promise<void> {
         this.rewindHandle = undefined;
         if (!this.rewinding) {
             return;
         }
 
-        // Cap the catch-up so a stalled frame cannot jump back by seconds at once.
         const elapsed = this.rewindLastTick
             ? Math.min(now - this.rewindLastTick, EmulatorTimeControl.REWIND_MAX_CATCHUP_MS)
             : 0;
@@ -187,15 +146,12 @@ export class EmulatorTimeControl {
         if (count > 0) {
             this.rewindOwed -= count;
             const applied = await this.host.core?.rewindStep(count) ?? 0;
-            // An entry covers `granularity` frames, so this is how much emulated
-            // time the machine has just given up.
             this.host.esSound.rewind((applied * granularity) / VB_FRAME_RATE);
             if (!this.rewinding) {
                 return;
             }
             if (applied === 0) {
-                // Nothing left to go back to. Hold on the oldest state rather than
-                // resuming under the user's finger; the release resumes as usual.
+                // nothing left to go back to: hold on the oldest state rather than resuming under the user's finger
                 return;
             }
         }
@@ -204,19 +160,12 @@ export class EmulatorTimeControl {
     }
 
     /**
-     * Serialize transitions between running and suspended.
-     *
-     * Both VesVbCore#run and #suspend touch the audio context as well as the
-     * worker, so overlapping them can leave the context suspended while the
-     * worker believes it is emulating — which stalls emulation outright, since it
-     * is the audio graph that clocks it. Pressing and releasing rewind faster
-     * than a suspend completes is exactly that case.
-     *
-     * The action is bound to the core that was current when it was queued and is
-     * skipped if the session has been torn down or rebuilt since, so a release
-     * queued on the way out cannot resume a disposed core or a fresh one.
+     * Serializes run/suspend transitions. VbCore#run and #suspend touch the audio context as well as the worker, and
+     * overlapping them (rewind pressed and released faster than a suspend completes) can leave the context suspended
+     * while the worker emulates, which stalls it, as the audio graph clocks it. The action is skipped if the session
+     * was torn down or rebuilt since queueing, so a release cannot resume a disposed or fresh core.
      */
-    queueCoreTransition(action: (core: VesVbCore) => Promise<void>): void {
+    queueCoreTransition(action: (core: Core) => Promise<void>): void {
         const core = this.host.core;
         if (!core) {
             return;

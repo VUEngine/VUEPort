@@ -1,0 +1,154 @@
+:root {
+    /* Type and metrics */
+    --vp-font-ui: var(--theia-ui-font-family, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+    --vp-font-code: var(--theia-code-font-family, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace);
+    --vp-font-size: var(--theia-ui-font-size1, 13px);
+    --vp-font-size-code: var(--theia-code-font-size, 12px);
+    --vp-line-height: var(--theia-content-line-height, 22px);
+    --vp-space: var(--theia-ui-padding, 6px);
+    --vp-space-half: calc(var(--vp-space) / 2);
+    --vp-space-x2: calc(var(--vp-space) * 2);
+    --vp-space-x3: calc(var(--vp-space) * 3);
+    --vp-space-x4: calc(var(--vp-space) * 4);
+    --vp-border-width: var(--theia-border-width, 1px);
+    --vp-icon-size: var(--theia-icon-size, 16px);
+    --vp-tab-height: var(--theia-private-horizontal-tab-height, 35px);
+    --vp-tab-scrollbar-height: var(--theia-private-horizontal-tab-scrollbar-height, 5px);
+    --vp-tab-scrollbar-rail-height: var(--theia-private-horizontal-tab-scrollbar-rail-height, 7px);
+    --vp-sash-width: var(--theia-sash-width, 5px);
+    --vp-sash-hover-delay: var(--theia-sash-hoverDelay, 300ms);
+    --vp-scrollbar-width: var(--theia-scrollbar-width, 10px);
+    --vp-radius: var(--theia-border-radius, 3px);
+
+    /* Surfaces: --vp-panel is the activity bar, --vp-header the tab strip, --vp-bg the editor (the deepest). Not
+       the input fields, they are lighter than the panels in dark themes. --vp-line is the activity bar's
+       background, so lines read as gaps between surfaces rather than drawn borders. */
+    --vp-bg: var(--theia-editor-background, #17171a);
+    --vp-panel: var(--theia-activityBar-background, #232329);
+    --vp-header: var(--theia-editorGroupHeader-tabsBackground, #1d1d22);
+    --vp-line: var(--theia-activityBar-background, #232329);
+    --vp-line-strong: var(--theia-contrastBorder, #43434d);
+    --vp-field-border: var(--theia-dropdown-border, #8a8a99);
+    --vp-shadow: var(--theia-widget-shadow, rgb(0 0 0 / 55%));
+
+    /* Text. --vp-text-dim is descriptionForeground, which Theia keeps for exactly this */
+    --vp-text: var(--theia-foreground, #e6e6ea);
+    --vp-text-dim: var(--theia-descriptionForeground, #a8a8b3);
+    --vp-on-accent: var(--theia-button-foreground, #ffffff);
+
+    /* Accent and state. editorSuccess-foreground is missing in some Theia releases, so success tries the older
+       successBackground before the literal */
+    --vp-accent: var(--theia-button-background, #d4262c);
+    --vp-danger: var(--theia-editorError-foreground, #e05260);
+    --vp-warning: var(--theia-editorWarning-foreground, #d9a441);
+    --vp-success: var(--theia-editorSuccess-foreground, var(--theia-successBackground, #5ac26a));
+    --vp-highlight: var(--theia-editor-selectionBackground, #33445c);
+    --vp-drop: var(--theia-editorGroup-dropBackground, rgb(212 38 44 / 18%));
+
+    /* Interaction */
+    --vp-control: var(--theia-secondaryButton-background, #4e4e56);
+    --vp-hover: var(--theia-list-hoverBackground, #2a2a31);
+    --vp-selected: var(--theia-list-activeSelectionBackground, #3a3a45);
+    --vp-selected-text: var(--theia-list-activeSelectionForeground, #ffffff);
+    --vp-scrollbar-thumb: var(--theia-scrollbarSlider-background, rgb(230 230 234 / 20%));
+    --vp-scrollbar-thumb-hover: var(--theia-scrollbarSlider-hoverBackground, rgb(230 230 234 / 32%));
+    --vp-scrollbar-thumb-active: var(--theia-scrollbarSlider-activeBackground, rgb(230 230 234 / 45%));
+}
+
+body {
+    --vp-font-ui: var(--theia-ui-font-family, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+}
+
+.vp-widget :focus:not(:focus-visible) {
+    outline: none;
+}
+
+.vp-widget .lm-TabBar-tab.lm-mod-closable > .lm-TabBar-tabCloseIcon {
+    box-sizing: content-box;
+}
+
+.vp-titlebar {
+    background: none;
+    flex-wrap: wrap;
+    height: auto;
+    padding: calc(var(--theia-ui-padding) * 2);
+}
+
+.vp-titlebar-controls {
+    flex-wrap: wrap;
+    gap: calc(var(--theia-ui-padding) / 2);
+    max-width: 100%;
+}
+
+.vp-titlebar .vp-strip-button,
+.vp-titlebar-button {
+    background: var(--theia-secondaryButton-background, var(--vp-control));
+    color: var(--theia-secondaryButton-foreground, var(--vp-text));
+    border-radius: 2px;
+}
+
+.vp-titlebar .vp-strip-button:hover:not(:disabled),
+.vp-titlebar-button:hover:not(:disabled):not(.active) {
+    background: var(--theia-secondaryButton-hoverBackground, var(--vp-hover));
+    color: var(--theia-secondaryButton-foreground, var(--vp-text));
+}
+
+.vp-titlebar .vp-strip-button-on,
+.vp-titlebar-button.active {
+    background: var(--theia-button-background, var(--vp-accent));
+    color: var(--theia-button-foreground, var(--vp-on-accent));
+}
+
+.vp-titlebar .vp-strip-button-on:hover:not(:disabled),
+.vp-titlebar-button.active:hover:not(:disabled) {
+    background: var(--theia-button-hoverBackground, var(--vp-accent));
+    color: var(--theia-button-foreground, var(--vp-on-accent));
+    filter: none;
+}
+
+.vp-titlebar .vp-strip-button:disabled,
+.vp-titlebar-button:disabled {
+    background: var(--theia-secondaryButton-disabledBackground, var(--vp-control));
+    color: var(--theia-secondaryButton-disabledForeground, var(--vp-text-dim));
+}
+
+.vp-titlebar .vp-strip-inline {
+    gap: calc(var(--theia-ui-padding) * 2);
+    row-gap: 2px;
+}
+
+.vp-titlebar .vp-strip-group {
+    gap: calc(var(--theia-ui-padding) / 2);
+}
+
+.vp-titlebar .vp-strip-group + .vp-strip-group {
+    border: none;
+    margin: 0;
+    padding: 0;
+}
+
+.vp-titlebar-controls-divider {
+    background: none;
+    margin: 0;
+    width: var(--theia-ui-padding);
+}
+
+.vp-panel-aside {
+    background: transparent;
+}
+
+.vp-screen-frame {
+    padding: calc(var(--theia-ui-padding) * 2);
+}
+
+.vp-input {
+    background: var(--theia-input-background, var(--vp-bg));
+    box-sizing: border-box;
+    color: var(--theia-input-foreground, var(--vp-text));
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.vp-input::placeholder {
+    color: var(--theia-input-placeholderForeground, var(--vp-text-dim));
+}

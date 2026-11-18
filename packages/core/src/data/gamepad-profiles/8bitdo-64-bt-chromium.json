@@ -1,0 +1,180 @@
+{
+    "format": "vueport-gamepad-profile",
+    "version": 1,
+    "id": "8bitdo-64-bluetooth-controller-chromium-macos",
+    "name": "8BitDo 64 Bluetooth Controller",
+    "family": "generic",
+    "match": {
+        "device": "2dc8:3019",
+        "name": "8BitDo 64 BT",
+        "mapping": "",
+        "engine": "chromium",
+        "platform": "macos",
+        "buttons": 18,
+        "axes": 10
+    },
+    "deadZone": 0.5,
+    "buttons": {
+        "a": [
+            {
+                "kind": "button",
+                "index": 0
+            }
+        ],
+        "b": [
+            {
+                "kind": "button",
+                "index": 1
+            }
+        ],
+        "start": [
+            {
+                "kind": "button",
+                "index": 11
+            }
+        ],
+        "select": [
+            {
+                "kind": "button",
+                "index": 10
+            }
+        ],
+        "lUp": [
+            {
+                "kind": "hat",
+                "index": 9,
+                "direction": "up"
+            },
+            {
+                "kind": "axis",
+                "index": 1,
+                "direction": -1
+            }
+        ],
+        "lRight": [
+            {
+                "kind": "hat",
+                "index": 9,
+                "direction": "right"
+            },
+            {
+                "kind": "axis",
+                "index": 0,
+                "direction": 1
+            }
+        ],
+        "lDown": [
+            {
+                "kind": "hat",
+                "index": 9,
+                "direction": "down"
+            },
+            {
+                "kind": "axis",
+                "index": 1,
+                "direction": 1
+            }
+        ],
+        "lLeft": [
+            {
+                "kind": "hat",
+                "index": 9,
+                "direction": "left"
+            },
+            {
+                "kind": "axis",
+                "index": 0,
+                "direction": -1
+            }
+        ],
+        "rUp": [
+            {
+                "kind": "axis",
+                "index": 5,
+                "direction": -1
+            }
+        ],
+        "rRight": [
+            {
+                "kind": "axis",
+                "index": 2,
+                "direction": 1
+            }
+        ],
+        "rDown": [
+            {
+                "kind": "axis",
+                "index": 5,
+                "direction": 1
+            }
+        ],
+        "rLeft": [
+            {
+                "kind": "axis",
+                "index": 2,
+                "direction": -1
+            }
+        ],
+        "lTrigger": [
+            {
+                "kind": "button",
+                "index": 6
+            }
+        ],
+        "rTrigger": [
+            {
+                "kind": "button",
+                "index": 7
+            }
+        ]
+    },
+    "actions": {
+        "commandPalette": [
+            {
+                "kind": "button",
+                "index": 12
+            }
+        ],
+        "rewind": [
+            {
+                "kind": "button",
+                "index": 8
+            }
+        ],
+        "pauseToggle": [
+            {
+                "kind": "button",
+                "index": 13
+            }
+        ],
+        "toggleFastForward": [
+            {
+                "kind": "button",
+                "index": 9
+            }
+        ],
+        "screenshot": [
+            {
+                "kind": "button",
+                "index": 17
+            }
+        ]
+    },
+    "labels": {
+        "b0": "A",
+        "b1": "B",
+        "b6": "L",
+        "b7": "R",
+        "b8": "Z",
+        "b9": "ZR",
+        "b10": "−",
+        "b11": "Start",
+        "b12": "♥",
+        "b13": "LS",
+        "b17": "★",
+        "a5-": "C↑",
+        "a5+": "C↓",
+        "a2-": "C←",
+        "a2+": "C→"
+    }
+}

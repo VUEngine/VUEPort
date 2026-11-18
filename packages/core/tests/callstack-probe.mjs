@@ -1,38 +1,25 @@
-// Can a call stack be rebuilt by watching instructions, and what does it cost?
-//
-// Phase 6's export profiler replays a recorded session with an execute callback
-// and maintains a *shadow* call stack from the calls and returns it sees, rather
-// than unwinding the real one. That sidesteps `-fomit-frame-pointer` entirely
-// (§5.6) — nothing is unwound, so there is no frame to find. Two things have to
-// hold for that to work:
-//
-//   1. Calls and returns are recognisable from the instruction alone. On the
-//      V810 a call is JAL and the ordinary return is JMP [r31].
-//   2. Maintaining the stack is cheap enough to replay a real session in
-//      tolerable time. breakpoint-probe.mjs put a bare execute callback at
-//      1.12x and one doing a Set lookup at 1.38x; this is more work than that.
-//
-// It also measures the difference between reading each instruction back out of
-// the machine and pre-decoding the ROM once, which is the design question:
-// the ROM does not change during a replay, so every instruction's kind can be
-// known before the replay starts.
-//
-// Usage: node tests/callstack-probe.mjs
+/**
+ * Can a shadow call stack be kept from executed calls and returns, and at what cost? The export profiler replays a
+ * session this way instead of unwinding, which sidesteps -fomit-frame-pointer. It needs calls and returns to be
+ * recognizable from the instruction alone (V810: JAL, and JMP [r31] to return), and must be cheap enough to replay a
+ * real session (breakpoint-probe.mjs measured a bare callback at 1.12x and a Set lookup at 1.38x). Also compares reading
+ * each instruction back with pre-decoding the ROM once, as the ROM does not change during a replay.
+ * Usage: node tests/callstack-probe.mjs
+ */
 import fs from 'fs';
 
 const TABLE_SLOTS = 16;
-/** vbRead's type argument; see VbDataType. */
+// vbRead's type argument; see VbDataType
 const U16 = 3;
 
-/** V810 opcodes, in the top six bits of the first halfword. */
+// V810 opcodes, in the top six bits of the first halfword
 const OP_JMP = 0b000110;
 const OP_JR = 0b101010;
 const OP_JAL = 0b101011;
-/** The link register, which JMP returns through. */
 const LINK_REGISTER = 31;
 
 const corePath = new URL(
-    '../wasm/core.wasm',
+    '../wasm/shrooms/core.wasm',
     import.meta.url
 );
 
@@ -47,7 +34,7 @@ const check = (label, actual, expected) => {
 };
 const report = (label, value) => console.log(`  --   ${label}: ${value}`);
 
-// --- Patching the table (see write-callback-probe.mjs) -----------------------
+// patching the table (see write-callback-probe.mjs)
 
 function readUleb(bytes, at) {
     let result = 0, shift = 0, length = 0, byte;
@@ -86,7 +73,7 @@ function patchTableLimit(bytes, slots) {
 
 const coreBytes = patchTableLimit(fs.readFileSync(corePath), TABLE_SLOTS);
 
-// --- The execute callback's (i32 x4) -> i32 trampoline -----------------------
+// the execute callback's (i32 x4) -> i32 trampoline
 
 function uleb(value) {
     const out = [];
@@ -128,25 +115,8 @@ function makeTrampoline(onCall, arity = 4) {
     ).exports.t;
 }
 
-// --- A program with a known call tree ---------------------------------------
-
-/**
- * main → outer → inner, then back out, forever:
- *
- *   main:   jal outer          depth 1
- *           br  main            round again, so the tree repeats
- *   outer:  mov r31, r20        save the link register...
- *           jal inner           ...which this is about to clobber
- *           mov r20, r31        ...and restore it
- *           jmp [r31]
- *   inner:  add r0, r0
- *           jmp [r31]
- *
- * The save and restore are the point, not decoration: JAL writes the return
- * address into r31, so a function that calls anything has to preserve it or it
- * can never return. Without them `outer` returns to itself forever, and the
- * probe would be asserting against a program that does not actually nest.
- */
+// main calls outer, outer calls inner, then back out, forever. outer saves and restores r31 around its JAL, which would
+// otherwise overwrite its own return address and make it return to itself
 const ROM_SIZE = 0x100000;
 const PROGRAM = 0xffffff00;
 const at = {};
@@ -162,9 +132,9 @@ function buildRom() {
         view.setUint16(cursor, value & 0xffff, true);
         cursor += 2;
     };
-    // Format II: opcode, then reg2 and a five-bit immediate.
+    // format II: opcode, then reg2 and a five-bit immediate
     const mov = (imm, destination) => half((0x10 << 10) | (destination << 5) | (imm & 0x1f));
-    // Format I: opcode, reg2, reg1.
+    // format I: opcode, reg2, reg1
     const addReg = (source, destination) => half((0x01 << 10) | (destination << 5) | source);
     const movReg = (source, destination) => half((0x00 << 10) | (destination << 5) | source);
     const jmp = register => half((OP_JMP << 10) | register);
@@ -179,7 +149,7 @@ function buildRom() {
         half(0x8a00 | ((target - from) & 0x1ff));
     };
 
-    // Reserve space for main, filled once the callees' addresses are known.
+    // reserve space for main, filled once the callees' addresses are known
     const mainAt = cursor;
     mark('main');
     cursor += 8;
@@ -197,16 +167,13 @@ function buildRom() {
     mark('innerReturn');
     jmp(LINK_REGISTER);
 
-    // main: call outer, then loop back to call it again.
     cursor = mainAt;
     jal(at.outer);
     branch(at.main);
 
-    // outer: call inner.
     cursor = outerBody;
     jal(at.inner);
 
-    // Reset vector jumps to main.
     cursor = ROM_SIZE - 0x10;
     const disp = (at.main - (PROGRAM + 0xf0)) | 0;
     half((OP_JR << 10) | ((disp >> 16) & 0x3ff));
@@ -215,8 +182,6 @@ function buildRom() {
 }
 
 const ROM = buildRom();
-
-// --- Boot --------------------------------------------------------------------
 
 const { instance } = await WebAssembly.instantiate(coreBytes, {
     env: { emscripten_notify_memory_growth: () => { } }
@@ -249,9 +214,7 @@ for (const [name, address] of Object.entries(at)) {
     report(name, '0x' + (address >>> 0).toString(16).toUpperCase());
 }
 
-// --- 1. Are calls and returns recognisable? ---------------------------------
-
-console.log('\n1. Recognising calls and returns');
+console.log('\n1. Recognizing calls and returns');
 {
     const sim = newSim();
     const stack = [];
@@ -263,7 +226,7 @@ console.log('\n1. Recognising calls and returns');
         const word = E.vbRead(s, address, U16) & 0xffff;
         const opcode = word >>> 10;
         if (opcode === OP_JAL) {
-            // The return lands after the two halfwords a JAL occupies.
+            // the return lands after the two halfwords a JAL occupies
             stack.push((address + 4) >>> 0);
             deepest = Math.max(deepest, stack.length);
             if (sequence.length < 8) {
@@ -283,31 +246,21 @@ console.log('\n1. Recognising calls and returns');
     report('deepest stack', deepest);
     report('first events', sequence.join(' '));
     report('stack depth at the end', stack.length);
-    // main → outer → inner is two frames below main, and main never returns.
+    // main → outer → inner is two frames below main, and main never returns
     check('the call tree reaches two deep', deepest, 2);
     check('calls and returns nest as the tree does', sequence.slice(0, 4).join(' '),
         'call@1 call@2 ret@1 ret@0');
-    // The loop runs the same tree over and over, so the pattern repeats rather
-    // than drifting — which is what says returns are being matched to calls
-    // and not merely counted.
+    // the same tree repeats rather than drifting, which shows returns are matched to calls, not just counted
     check('the pattern repeats on the next lap', sequence.slice(4, 8).join(' '),
         'call@1 call@2 ret@1 ret@0');
-    // Not zero: the run is cut off at a clock count, which lands wherever it
-    // lands — usually part way through a lap. What matters is that the depth
-    // is somewhere the tree actually reaches, so no return went unmatched and
-    // no call went unclosed.
+    // not zero, as the run is cut off at a clock count mid-lap; the depth must be one the tree reaches, so no
+    // return went unmatched and no call unclosed
     check('the run ends somewhere inside the tree', stack.length >= 0 && stack.length <= 2, true);
 }
 
-// --- 2. Pre-decoding the ROM instead of reading each instruction ------------
-
 console.log('\n2. Pre-decoding the ROM');
-/**
- * The ROM does not change while a replay runs, so what kind of instruction
- * lives at each address can be worked out once, before it starts. A byte per
- * halfword over a 16 MB ROM is 8 MB of table — cheap next to reading every
- * instruction back out of the machine.
- */
+// the ROM does not change during a replay, so instruction kinds can be worked out once: a byte per halfword
+// over a 16 MB ROM is 8 MB of table, cheap next to reading every instruction back
 const KIND_OTHER = 0;
 const KIND_CALL = 1;
 const KIND_RETURN = 2;
@@ -334,7 +287,7 @@ report('decode of a 1 MB ROM',
     const stack = [];
     let deepest = 0;
     instance.exports.__indirect_function_table.set(2, makeTrampoline((s, pc) => {
-        // The program counter is in the ROM mirror, so index by ROM offset.
+        // the program counter is in the ROM mirror, so index by ROM offset
         const kind = KINDS[((pc >>> 0) & (ROM_SIZE - 1)) >> 1];
         if (kind === KIND_CALL) {
             stack.push(pc);
@@ -348,8 +301,6 @@ report('decode of a 1 MB ROM',
     emulate(sim, 400);
     check('the pre-decoded table sees the same tree', deepest, 2);
 }
-
-// --- 3. What does it cost? --------------------------------------------------
 
 console.log('\n3. Cost of a replay');
 {
@@ -373,7 +324,6 @@ console.log('\n3. Cost of a replay');
     }));
     const counting = time('counting only', sim => E.vbSetExecuteCallback(sim, 3));
 
-    // (a) Reading the instruction back out of the machine every time.
     const readStack = [];
     instance.exports.__indirect_function_table.set(4, makeTrampoline((s, pc) => {
         const word = E.vbRead(s, pc >>> 0, U16) & 0xffff;
@@ -387,7 +337,6 @@ console.log('\n3. Cost of a replay');
     }));
     const reading = time('shadow stack, reading each instruction', sim => E.vbSetExecuteCallback(sim, 4));
 
-    // (b) The same, off the pre-decoded table.
     const fastStack = [];
     let samples = 0;
     instance.exports.__indirect_function_table.set(5, makeTrampoline((s, pc) => {
@@ -407,9 +356,8 @@ console.log('\n3. Cost of a replay');
     report('reading each instruction', `${(reading / bare).toFixed(2)}x`);
     report('pre-decoded table', `${(decoded / bare).toFixed(2)}x`);
     report('samples maintained', samples.toLocaleString());
-    // 20,000,000 clocks is one second of Virtual Boy time. A replay is offline,
-    // so it may run below real time — but a minute of play should not take an
-    // afternoon. Ten times real time is the bound worth holding.
+    // 20,000,000 clocks is one second of Virtual Boy time. A replay is offline and may run below real time, but
+    // ten times real time is the bound worth holding
     report('replay of a minute of play',
         `${((decoded / 1e9) * 60).toFixed(0)} s (pre-decoded), ${((reading / 1e9) * 60).toFixed(0)} s (reading)`);
     check('pre-decoding is the cheaper of the two', decoded < reading, true);

@@ -1,0 +1,38 @@
+:root[data-theme="light"] {
+    /* Surfaces */
+    --vp-bg: #fff;
+    --vp-panel: #f2f2f5;
+    --vp-header: #e6e6ec;
+    --vp-chrome: #d2d2da;
+    --vp-line: #c2c2ca;
+    --vp-line-strong: #c4c4ce;
+    --vp-field-border: #696973;
+    --vp-shadow: rgb(28 28 34 / 22%);
+    --vp-chip: rgb(28 28 34 / 12%);
+
+    /* Text */
+    --vp-text: #1c1c22;
+    --vp-text-dim: #5f5f6b;
+
+    /* Accent and state */
+    --vp-accent: #c81f26;
+    --vp-accent-hover: #a3161c;
+    --vp-secondary: #00e8e8;
+    --vp-danger: #b3121f;
+    --vp-warning: #8a5a00;
+    --vp-success: #1c7a31;
+    --vp-highlight: #cddffb;
+    --vp-drop: rgb(200 31 38 / 12%);
+    --vp-code: #a31515;
+    --vp-glow: rgb(28 28 34 / 35%);
+    --vp-ambient-color: #000;
+
+    /* Interaction */
+    --vp-control: #dcdce3;
+    --vp-hover: #e6e6ec;
+    --vp-selected: #d5d5de;
+    --vp-selected-text: #101014;
+    --vp-scrollbar-thumb: rgb(28 28 34 / 22%);
+    --vp-scrollbar-thumb-hover: rgb(28 28 34 / 34%);
+    --vp-scrollbar-thumb-active: rgb(28 28 34 / 46%);
+}

@@ -1,11 +1,11 @@
-import { nls } from '../../../common/emulator-nls';
-import { debounce, isInteger } from 'lodash';
+import { Warning, X } from '@phosphor-icons/react';
 import React, { FocusEventHandler, MouseEventHandler, RefObject, useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
-import VContainer from './VContainer';
-import { clamp } from './Utils';
+import { nls } from '../../../common/emulator-nls';
 import InfoLabel from './InfoLabel';
 import { useKit } from './KitContext';
+import { clamp, debounce } from './Utils';
+import VContainer from './VContainer';
 
 interface InputProps {
     value: string | number
@@ -47,13 +47,13 @@ const ClearableContainer = styled.div`
         top: 5px;
 
         &.invalid {
-            color: var(--theia-focusBorder); 
+            color: var(--vp-accent); 
             display: block !important;
             right: 20px;
         }
 
         &:hover {
-            color: var(--theia-focusBorder);
+            color: var(--vp-accent);
         }
     }
 
@@ -91,7 +91,7 @@ export default function Input(props: InputProps): React.JSX.Element {
     const updateInternalValue = (iv: string | number) => {
         if (type === 'number' && isNumeric(iv as unknown as number)) {
             iv = clamp(
-                isInteger(step) ? parseInt(iv as string) : parseFloat(iv as string),
+                Number.isInteger(step) ? parseInt(iv as string) : parseFloat(iv as string),
                 Number.MIN_SAFE_INTEGER, // do not enforce min value here
                 max ?? Number.MAX_SAFE_INTEGER,
                 defaultValue as number ?? min ?? 0
@@ -113,8 +113,8 @@ export default function Input(props: InputProps): React.JSX.Element {
     };
 
     const validateAndUpdateValue = useCallback(debounce(
-        iv => {
-            if ((type === 'number' && isNumeric(iv) && (min === undefined || iv >= min))) {
+        (iv: string | number) => {
+            if ((type === 'number' && isNumeric(iv) && (min === undefined || Number(iv) >= min))) {
                 if (setValue) {
                     setValue(iv);
                 }
@@ -155,7 +155,7 @@ export default function Input(props: InputProps): React.JSX.Element {
                     <input
                         id={id}
                         ref={inputRef}
-                        className={`theia-input${size ? ` ${size}` : ''}${className ? ` ${className}` : ''}`}
+                        className={`vp-input${size ? ` ${size}` : ''}${className ? ` ${className}` : ''}`}
                         type={type}
                         min={min}
                         max={max}
@@ -183,20 +183,23 @@ export default function Input(props: InputProps): React.JSX.Element {
                         placeholder={placeholder}
                     />
                     {clearable && !!internalValue && !disabled && !readOnly &&
-                        <i
-                            className="codicon codicon-x"
+                        <div
                             onClick={() => updateInternalValue(type === 'number'
                                 ? (defaultValue as number ?? 0)
                                 : (defaultValue as string ?? '')
                             )}
                             title={nls.localize('vueport/general/clear', 'Clear')}
-                        />
+                        >
+                            <X size={16} />
+                        </div>
                     }
                     {invalid &&
-                        <i
-                            className="codicon codicon-warning invalid"
+                        <div
+                            className="invalid"
                             title={nls.localize('vueport/general/invalid', 'Invalid')}
-                        />
+                        >
+                            <Warning size={20} />
+                        </div>
                     }
                 </ClearableContainer>
             </div>

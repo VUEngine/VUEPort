@@ -1,0 +1,16 @@
+# packages.vueport.net: the VB Color packages (yarn deploy:packages). Each file is named by its content and never
+# changes once published; VUEPort fetches them from other origins (play.vueport.net, the desktop app, VUEngine Studio).
+Options -Indexes
+AddType application/octet-stream .vbcpkg
+
+<IfModule mod_headers.c>
+    Header always set Access-Control-Allow-Origin "*"
+    <FilesMatch "\.vbcpkg$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+</IfModule>
+
+# already brotli: served as the bytes they are, never compressed again (the app decodes them itself)
+<IfModule mod_deflate.c>
+    SetEnvIfNoCase Request_URI "\.vbcpkg$" no-gzip dont-vary
+</IfModule>

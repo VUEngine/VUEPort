@@ -1,0 +1,23 @@
+.vp-widget .lm-TabBar {
+  background: var(--vp-panel);
+  border-bottom: 1px solid var(--vp-line);
+  border-top: none;
+}
+
+.vp-widget .lm-TabBar-content .lm-TabBar-tab {
+    border-bottom: 1px solid transparent;
+    border-top: 1px solid transparent !important;
+}
+
+.vp-widget .lm-TabBar-tab.lm-mod-current {
+    background: var(--vp-header);
+    border-bottom: 1px solid var(--vp-accent);
+}
+
+.vp-widget .lm-TabBar-tab.lm-mod-closable > .lm-TabBar-tabCloseIcon {
+    font: normal normal normal 12px/1 var(--vp-font-ui);
+}
+
+.vp-widget .lm-TabBar-tab.lm-mod-closable > .lm-TabBar-tabCloseIcon::before {
+    content: '\2715';
+}

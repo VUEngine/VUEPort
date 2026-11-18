@@ -1,37 +1,29 @@
-/**
- * Just enough ELF32 to read what a build knows about itself.
- *
- * The `.map` a build leaves beside its ROM lists global symbols only, and much
- * of what the inspectors want is not global — `Rumble.c`'s `_rumbleEffectSpec`
- * and `MemoryPool`'s singleton are file-scope statics, which appear only in the
- * `.elf`. The same file also carries the sections behind those symbols, so
- * anything the linker laid out can be read back without the machine running:
- * a class' `getBaseClass` stub, or the DWARF describing its fields.
- *
- * Reading it here rather than shelling out to `v810-nm` or `objdump` keeps
- * this on the frontend, where the ROM is already being loaded.
- */
+// just enough ELF32 for what only the `.elf` has: the `.map` lists globals only, not file-scope statics (Rumble.c's
+// `_rumbleEffectSpec`, MemoryPool's singleton), getBaseClass stubs or DWARF. Parsed here to stay on the frontend
 
-/** A symbol, with the address and size the linker gave it. */
-export interface VesElfSymbol {
-    /** As the linker recorded it, including the ABI's leading underscore. */
-    name: string;
+export interface ElfSymbol {
+    name: string; // with the ABI's leading underscore
     address: number;
     size: number;
-    /** Code rather than data. Both are kept: the class table needs code. */
     isFunction: boolean;
 }
 
-/** A build's image: its symbols, and the bytes the linker placed. */
-export interface VesElfImage {
-    symbols: VesElfSymbol[];
-    /** A named section's contents, or undefined if it has none. */
+export interface ElfSection {
+    name: string;
+    address: number; // 0 for a section never loaded
+    size: number;
+    allocated: boolean;
+    executable: boolean;
+    writable: boolean;
+    // false for `.bss`, which is zeroed at startup and costs no ROM; `.data` costs RAM and ROM (copied out of it)
+    hasContents: boolean;
+}
+
+export interface ElfImage {
+    symbols: ElfSymbol[];
+    sections: ElfSection[];
     section(name: string): Uint8Array | undefined;
-    /**
-     * Bytes at a runtime address, from whichever section covers it. Undefined
-     * for an address in no section, or in one with no contents of its own
-     * (`.bss`, whose bytes only exist once the machine has zeroed them).
-     */
+    // undefined for an address in no section or in one without contents (`.bss`)
     read(address: number, length: number): Uint8Array | undefined;
 }
 
@@ -40,6 +32,9 @@ const ELFCLASS32 = 1;
 const ELFDATA2LSB = 1;
 const SHT_SYMTAB = 2;
 const SHT_NOBITS = 8;
+const SHF_WRITE = 0x1;
+const SHF_ALLOC = 0x2;
+const SHF_EXECINSTR = 0x4;
 const STT_OBJECT = 1;
 const STT_FUNC = 2;
 const SYMBOL_ENTRY_SIZE = 16;
@@ -47,17 +42,15 @@ const SYMBOL_ENTRY_SIZE = 16;
 interface Section {
     name: string;
     type: number;
+    flags: number;
     address: number;
     offset: number;
     size: number;
     link: number;
 }
 
-/**
- * Read an ELF32 image, or undefined if it is not one this can read — which is
- * not worth an error, since it only means the features built on it stay off.
- */
-export function readElf(bytes: Uint8Array): VesElfImage | undefined {
+// undefined if this is not an image it can read, which only keeps the features built on it off
+export function readElf(bytes: Uint8Array): ElfImage | undefined {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     if (bytes.byteLength < 52
         || view.getUint32(0, true) !== ELF_MAGIC
@@ -92,6 +85,7 @@ export function readElf(bytes: Uint8Array): VesElfImage | undefined {
         sections.push({
             name: readString(bytes, sectionNames, bytes.byteLength - sectionNames, view.getUint32(header, true)),
             type,
+            flags: view.getUint32(header + 8, true),
             address: view.getUint32(header + 12, true) >>> 0,
             offset,
             size,
@@ -101,6 +95,15 @@ export function readElf(bytes: Uint8Array): VesElfImage | undefined {
 
     return {
         symbols: readSymbols(bytes, view, sections, at, sectionHeaderSize),
+        sections: sections.map(section => ({
+            name: section.name,
+            address: section.address,
+            size: section.size,
+            allocated: (section.flags & SHF_ALLOC) !== 0,
+            executable: (section.flags & SHF_EXECINSTR) !== 0,
+            writable: (section.flags & SHF_WRITE) !== 0,
+            hasContents: section.type !== SHT_NOBITS,
+        })),
         section: name => {
             const section = sections.find(candidate => candidate.name === name);
             return section && section.type !== SHT_NOBITS
@@ -110,9 +113,8 @@ export function readElf(bytes: Uint8Array): VesElfImage | undefined {
         read: (address, length) => {
             const target = address >>> 0;
             for (const section of sections) {
-                // A section at address zero was not loaded anywhere: the debug
-                // sections are all like that, and would otherwise swallow
-                // every low address asked for.
+                // a section at address zero was not loaded anywhere (all debug sections), and would otherwise swallow
+                // every low address asked for
                 if (section.type === SHT_NOBITS || section.address === 0
                     || target < section.address || target + length > section.address + section.size) {
                     continue;
@@ -125,20 +127,19 @@ export function readElf(bytes: Uint8Array): VesElfImage | undefined {
     };
 }
 
-/** Every named data and code symbol the image declares. */
 function readSymbols(
     bytes: Uint8Array,
     view: DataView,
     sections: Section[],
     at: (index: number) => number,
     sectionHeaderSize: number
-): VesElfSymbol[] {
-    const symbols: VesElfSymbol[] = [];
+): ElfSymbol[] {
+    const symbols: ElfSymbol[] = [];
     for (const section of sections) {
         if (section.type !== SHT_SYMTAB) {
             continue;
         }
-        // sh_link on a symbol table is the string table its names live in.
+        // sh_link on a symbol table is the string table its names live in
         const stringHeader = at(section.link);
         if (stringHeader + sectionHeaderSize > bytes.byteLength) {
             continue;
@@ -151,8 +152,7 @@ function readSymbols(
 
         const end = section.offset + section.size;
         for (let entry = section.offset; entry + SYMBOL_ENTRY_SIZE <= end; entry += SYMBOL_ENTRY_SIZE) {
-            // st_info's low nibble is the symbol's type; sections and file
-            // names are of no interest, only variables and functions.
+            // st_info's low nibble is the symbol type; only variables and functions are of interest
             const type = view.getUint8(entry + 12) & 0xf;
             if (type !== STT_OBJECT && type !== STT_FUNC) {
                 continue;
@@ -171,7 +171,6 @@ function readSymbols(
     return symbols;
 }
 
-/** One NUL-terminated name out of a string table. */
 function readString(bytes: Uint8Array, tableOffset: number, tableSize: number, at: number): string {
     if (at >= tableSize) {
         return '';
@@ -181,31 +180,17 @@ function readString(bytes: Uint8Array, tableOffset: number, tableSize: number, a
     while (end < limit && bytes[end] !== 0) {
         end++;
     }
-    // Symbol names are C identifiers, so this never has to decode anything
-    // wider than a byte.
+    // symbol names are C identifiers, so nothing wider than a byte
     return String.fromCharCode(...bytes.subarray(tableOffset + at, end));
 }
 
-/**
- * The `.elf` a build's `.map` file says it produced.
- *
- * A map sits beside the ROM it belongs to and names its own image on a line
- * like `OUTPUT(build/working/output-beta.elf elf32-v810)`, which is what makes
- * it possible to find the symbols for `build/output.vb` — a copy whose own
- * name says nothing about which build mode produced it. The path is relative
- * to the directory the build ran in, which is the project root.
- */
+// the map names its image like `OUTPUT(build/working/output-beta.elf elf32-v810)`, relative to the project root.
+// `build/output.vb` itself says nothing about the build mode
 export function readElfPathFromMap(map: string): string | undefined {
     return /^OUTPUT\(([^\s)]+)/m.exec(map)?.[1];
 }
 
-/**
- * The build modes VUEngine produces.
- *
- * A copy of VES's `BuildMode`, so that reading one out of a ROM does not
- * reach into the build machinery — the emulator only ever compares a name it
- * found against these, and a ROM built elsewhere matches none of them.
- */
+// a copy of VES's BuildMode, so reading one out of a ROM does not reach into the build machinery
 export enum BuildMode {
     Shipping = 'Shipping',
     Release = 'Release',
@@ -214,18 +199,8 @@ export enum BuildMode {
     Debug = 'Debug',
 }
 
-/**
- * Which build mode produced a `.map`, from the image it says it made.
- *
- * The mode is a set of `-D` flags rather than anything recorded in the output
- * — DWARF's producer string carries the compiler's switches but not its
- * defines, so two modes are identical there — but the build gives each mode an
- * image of its own, `output-beta.elf` beside `output-release.elf`. That name
- * is the one durable trace of which one ran.
- *
- * Returns the mode as the build names it, lower case; the caller decides
- * whether it is one it knows.
- */
+// a mode is only a set of `-D` flags and not recorded in the output (DWARF's producer string has no defines), but
+// each mode gets its own image (`output-beta.elf`). Returns the lower-case name
 export function readBuildModeFromMap(map: string): string | undefined {
     const output = readElfPathFromMap(map);
     return output === undefined

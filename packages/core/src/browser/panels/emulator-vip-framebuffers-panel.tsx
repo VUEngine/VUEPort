@@ -3,7 +3,8 @@ import { nls } from '../../common/emulator-nls';
 import * as React from 'react';
 import RadioSelect from '../components/kit/RadioSelect';
 import EmptyContainer from '../components/kit/EmptyContainer';
-import { EmulatorPanelType, hex, VesEmulatorDebugSource, VesEmulatorPanel } from './emulator-panel';
+import { EmulatorPanelType, hex, DebugSource, Panel } from './emulator-panel';
+import { emulatorPanelTitleIcon } from './emulator-panel-icons';
 import { VipCanvas } from './emulator-vip-canvas';
 import {
     sameVipBytes,
@@ -20,24 +21,17 @@ import {
     VipIntensityWatcher,
 } from './emulator-vip-memory';
 
-/**
- * The two eyes' frame buffers, overlaid as a red/blue anaglyph — red for the
- * left eye, blue for the right, the same pairing the Anaglyph rendering mode
- * offers as "Red / Blue".
- *
- * A frame buffer's pixels are already resolved brightness levels rather than
- * palette indices (see VipFrameBuffer), so unlike the Characters and BGMaps
- * panels there is no palette to pick — only whether to read the levels from
- * the real BRTA/BRTB/BRTC registers or the flat generic ramp.
- */
-export class VesEmulatorVipFrameBuffersPanel extends VesEmulatorPanel {
+// the two eyes' frame buffers as a red/blue anaglyph (red left, blue right, like the Red / Blue rendering mode).
+// Frame buffer pixels are resolved brightness levels (see VipFrameBuffer), so there is no palette to pick, only
+// whether to read the levels from BRTA/BRTB/BRTC or the flat generic ramp
+export class FrameBuffersPanel extends Panel {
 
     protected error?: string;
     protected registers?: DataView;
     protected leftBytes?: Uint8Array;
     protected rightBytes?: Uint8Array;
     protected index = 0;
-    protected zoom = 2;
+    protected zoom = this.remembered('zoom', 1);
     protected showLeft = true;
     protected showRight = true;
     protected showGenericColors = true;
@@ -46,9 +40,10 @@ export class VesEmulatorVipFrameBuffersPanel extends VesEmulatorPanel {
     protected dirty = true;
     protected readonly intensityWatcher = new VipIntensityWatcher();
 
-    constructor(source: VesEmulatorDebugSource, instanceId: string) {
+    constructor(source: DebugSource, instanceId: string) {
         super(EmulatorPanelType.VIP_FRAME_BUFFERS, source, instanceId);
-        this.title.label = nls.localize('vueport/panels/frameBuffers', 'Frame Buffers');
+        this.title.label = nls.localize('vueport/debug/panels/frameBuffers/title', 'Frame Buffers');
+        this.title.icon = emulatorPanelTitleIcon(EmulatorPanelType.VIP_FRAME_BUFFERS);
     }
 
     protected pollHz(): number {
@@ -93,7 +88,7 @@ export class VesEmulatorVipFrameBuffersPanel extends VesEmulatorPanel {
         }
 
         if (this.dirty && this.registers) {
-            this.image = this.rasterise(this.registers);
+            this.image = this.rasterize(this.registers);
             this.dirty = false;
         }
         this.update();
@@ -108,7 +103,7 @@ export class VesEmulatorVipFrameBuffersPanel extends VesEmulatorPanel {
         this.refresh();
     }
 
-    protected rasterise(registers: DataView): ImageData {
+    protected rasterize(registers: DataView): ImageData {
         const levels = this.showGenericColors
             ? VIP_GENERIC_PALETTE_INTENSITIES
             : vipBrightnessLevelsFromRegisters(registers);
@@ -140,22 +135,22 @@ export class VesEmulatorVipFrameBuffersPanel extends VesEmulatorPanel {
         if (!this.registers) {
             return <EmptyContainer
                 title={nls.localize(
-                  'vueport/panels/notRunning',
-                  'The emulator is not running.',
+                    'vueport/general/notRunning',
+                    'The emulator is not running.',
                 )}
                 icon={<Plug size={32} />}
-              />;
+            />;
         }
         if (!this.image) {
-            return <div className='vueport-panel-empty'>
-                {nls.localize('vueport/panels/framebuffers/reading', 'Reading VIP memory…')}
+            return <div className='vp-panel-empty'>
+                {nls.localize('vueport/debug/panels/frameBuffers/reading', 'Reading VIP memory…')}
             </div>;
         }
 
-        return <div className='vueport-vip-inspector'>
-            <div className='vueport-vip-inspector-sidebar'>
-                <div className='vueport-vip-inspector-field'>
-                    <label>{nls.localize('vueport/panels/framebuffers/index', 'Index')}</label>
+        return <div className='vp-inspector'>
+            <div className='vp-inspector-sidebar vp-scroll'>
+                <div className='vp-inspector-field'>
+                    <label>{nls.localize('vueport/debug/panels/frameBuffers/index', 'Index')}</label>
                     <RadioSelect
                         options={[{
                             value: 0,
@@ -169,33 +164,36 @@ export class VesEmulatorVipFrameBuffersPanel extends VesEmulatorPanel {
                         fitSpace
                     />
                 </div>
-                <div className='vueport-vip-inspector-field'>
-                    <label>{nls.localize('vueport/panels/framebuffers/left', 'Left')}</label>
+                <div className='vp-inspector-field'>
+                    <label>{nls.localize('vueport/debug/panels/frameBuffers/left', 'Left')}</label>
                     <input
-                        className='theia-input'
+                        className='vp-input'
                         readOnly
                         value={hex(vipFrameBufferAddress('left', this.index), 8)}
                     />
                 </div>
-                <div className='vueport-vip-inspector-field'>
-                    <label>{nls.localize('vueport/panels/framebuffers/right', 'Right')}</label>
+                <div className='vp-inspector-field'>
+                    <label>{nls.localize('vueport/debug/panels/frameBuffers/right', 'Right')}</label>
                     <input
-                        className='theia-input'
+                        className='vp-input'
                         readOnly
                         value={hex(vipFrameBufferAddress('right', this.index), 8)}
                     />
                 </div>
 
-                <fieldset className='vueport-vip-inspector-group'>
-                    <legend>{nls.localize('vueport/panels/framebuffers/display', 'Display')}</legend>
+                <fieldset className='vp-inspector-group'>
+                    <legend>{nls.localize('vueport/debug/panels/frameBuffers/display', 'Display')}</legend>
                     <label>
-                        {nls.localize('vueport/panels/framebuffers/scale', 'Scale')}
+                        {nls.localize('vueport/debug/panels/frameBuffers/scale', 'Scale')}
                         <input
                             type='range'
                             min={1}
                             max={8}
                             value={this.zoom}
-                            onChange={e => { this.zoom = parseInt(e.target.value, 10); this.update(); }}
+                            onChange={e => {
+                                this.zoom = this.remember('zoom', parseInt(e.target.value, 10));
+                                this.update();
+                            }}
                         />
                         <span className='hint'>{this.zoom}</span>
                     </label>
@@ -205,7 +203,7 @@ export class VesEmulatorVipFrameBuffersPanel extends VesEmulatorPanel {
                             checked={this.showLeft}
                             onChange={e => { this.showLeft = e.target.checked; this.dirty = true; this.refresh(); }}
                         />
-                        {nls.localize('vueport/panels/framebuffers/left', 'Left')}
+                        {nls.localize('vueport/debug/panels/frameBuffers/left', 'Left')}
                     </label>
                     <label>
                         <input
@@ -213,7 +211,7 @@ export class VesEmulatorVipFrameBuffersPanel extends VesEmulatorPanel {
                             checked={this.showRight}
                             onChange={e => { this.showRight = e.target.checked; this.dirty = true; this.refresh(); }}
                         />
-                        {nls.localize('vueport/panels/framebuffers/right', 'Right')}
+                        {nls.localize('vueport/debug/panels/frameBuffers/right', 'Right')}
                     </label>
                     <label>
                         <input
@@ -221,11 +219,11 @@ export class VesEmulatorVipFrameBuffersPanel extends VesEmulatorPanel {
                             checked={this.showGenericColors}
                             onChange={e => { this.showGenericColors = e.target.checked; this.dirty = true; this.refresh(); }}
                         />
-                        {nls.localize('vueport/panels/framebuffers/genericColors', 'Generic colors')}
+                        {nls.localize('vueport/debug/panels/frameBuffers/genericColors', 'Generic colors')}
                     </label>
                 </fieldset>
             </div>
-            <div className='vueport-vip-inspector-main'>
+            <div className='vp-inspector-main vp-scroll'>
                 <VipCanvas image={this.image} zoom={this.zoom} />
             </div>
         </div>;

@@ -1,19 +1,14 @@
-// Where the display's four brightness levels land in the framebuffer the core
-// hands the renderer, which is what VB_LEVEL_STOPS encodes.
-//
-// The core resolves a pixel's 2-bit value into a brightness before we ever see
-// it, so the renderer cannot key a palette off the pixel value. It has to key
-// off the resolved level — and those levels are not evenly spaced: the core
-// puts them on a gamma-like curve, so a game running at the brightness VUEngine
-// configures by default (BRTA 32, BRTB 64, BRTC 32) comes out at 105, 162 and
-// 250 rather than 85, 170 and 255.
-//
-// Runs headless against the vendored core with drawing disabled, so the frame
-// buffers keep the pixel values this script paints into them.
+/**
+ * Where the display's four brightness levels land in the framebuffer the core hands the renderer (what VB_LEVEL_STOPS
+ * encodes). The core resolves a pixel's 2-bit value into a brightness, so the renderer keys off the level. The levels
+ * sit on a gamma-like curve: VUEngine's default brightness (BRTA 32, BRTB 64, BRTC 32) comes out at 105, 162 and 250
+ * rather than 85, 170 and 255. Runs headless with drawing disabled, so the frame buffers keep the pixel values painted
+ * into them.
+ */
 import fs from 'fs';
 
 const CORE = new URL(
-    '../wasm/core.wasm',
+    '../wasm/shrooms/core.wasm',
     import.meta.url
 );
 const { instance } = await WebAssembly.instantiate(fs.readFileSync(CORE), {
@@ -26,14 +21,14 @@ const U8 = 1, U16 = 3;
 const W = 384;
 const CLOCKS_PER_FRAME = 400000;
 
-// VIP registers are halfword-indexed from 0x0005F800 (libgccvb vip.h).
+// VIP registers are halfword-indexed from 0x0005F800 (libgccvb vip.h)
 const REG = index => 0x0005F800 + index * 2;
 const DPCTRL = REG(0x11);
 const BRTA = REG(0x12), BRTB = REG(0x13), BRTC = REG(0x14), REST = REG(0x15);
 const FRMCYC = REG(0x17), CTA = REG(0x18), XPCTRL = REG(0x21);
 const DISP = 0x0002, RE = 0x0100, SYNCE = 0x0200;
 
-// Frame buffers, left then right (Virtual Boy memory map).
+// frame buffers, left then right (Virtual Boy memory map)
 const FRAME_BUFFERS = [0x00000000, 0x00008000, 0x00010000, 0x00018000];
 const COLUMN_TABLES = [0x0003DC00, 0x0003DE00];
 
@@ -59,8 +54,8 @@ function run(count) {
     }
 }
 
-// Column 0 of every column, rows 0..3 = pixel values 0,1,2,3. Frame buffer
-// pixels are two bits each, four to a byte, least significant first.
+// column 0 of every column, rows 0..3 = pixel values 0,1,2,3; frame buffer pixels are two bits each, four to
+// a byte, least significant first
 function paint() {
     for (const base of FRAME_BUFFERS) {
         for (let column = 0; column < W; column++) {
@@ -82,12 +77,11 @@ function setUp() {
     }
 }
 
-/** The framebuffer level of each pixel value, for one brightness setting. */
 function levels(a, b, c) {
     E.vbWrite(sim, BRTA, U16, a);
     E.vbWrite(sim, BRTB, U16, b);
     E.vbWrite(sim, BRTC, U16, c);
-    // The display scans a whole frame before the level is settled.
+    // the display scans a whole frame before the level is settled
     for (let frame = 0; frame < 3; frame++) {
         paint();
         run(CLOCKS_PER_FRAME);
@@ -95,7 +89,7 @@ function levels(a, b, c) {
     paint();
     E.GetPixels(sim);
     const pixels = new Uint8Array(E.memory.buffer, E.GetExtPixels(sim), W * 224 * 4);
-    // Red carries the left eye, green the right, in the eye-packed framebuffer.
+    // red carries the left eye, green the right, in the eye-packed framebuffer
     return [0, 1, 2, 3].map(value => pixels[(value * W + 10) * 4]);
 }
 
@@ -109,15 +103,30 @@ function check(label, actual, expected) {
 }
 
 console.log('=== The stops VB_LEVEL_STOPS is taken from ===');
-// __BRIGHTNESS_DARK_RED / MEDIUM / BRIGHT are 32 / 64 / 128 (Config.h), and
-// DisplayUnit.c writes BRTC as bright - (medium + dark), so 32 as well.
+// __BRIGHTNESS_DARK_RED / MEDIUM / BRIGHT are 32 / 64 / 128 (Config.h), and DisplayUnit.c writes BRTC as
+// bright - (medium + dark), so 32 as well
 check('VUEngine default brightness (32, 64, 32)', levels(32, 64, 32), [0, 105, 162, 250]);
 
 console.log('\n=== The levels are not proportional to the registers ===');
-// Halving every register does not halve the levels, which is why the renderer
-// interpolates the palette between measured stops rather than even thirds.
+// halving every register does not halve the levels, which is why the renderer interpolates the palette between
+// measured stops rather than even thirds
 check('half brightness (16, 32, 16)', levels(16, 32, 16), [0, 68, 105, 162]);
 check('level 1 at 64 equals level 2 at 64', levels(64, 64, 0)[1], levels(32, 64, 32)[2]);
+
+console.log('\n=== The curve the panels draw their previews with ===');
+// vipBrightnessLevel in emulator-vip-memory.ts, repeated rather than imported so the probe checks that the core
+// still resolves a repeat count this way, and a panel rasterizing VRAM is as bright as the picture beside it
+const curve = repeat => repeat <= 0 ? 0 : Math.min(255, Math.round(250 * (repeat / 128) ** (1 / 1.6)));
+let off = 0;
+let worst = 0;
+for (let repeat = 0; repeat <= 255; repeat++) {
+    const measured = levels(repeat, 0, 0)[1];
+    const error = Math.abs(curve(repeat) - measured);
+    if (error > 0) { off++; }
+    worst = Math.max(worst, error);
+}
+console.log(`     ${off} of 256 repeat counts differ, none by more than ${worst}`);
+check('the panels\' curve is the core\'s, within a step', worst <= 1, true);
 
 console.log('\n=== A dimmed display lands between the stops ===');
 const dimmed = levels(24, 48, 24);

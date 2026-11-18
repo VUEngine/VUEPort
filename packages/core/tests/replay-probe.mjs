@@ -1,47 +1,24 @@
-// Does replaying a recording reproduce the session exactly?
-//
-// The whole export profiler rests on this: record the machine's state and the
-// input it was given, replay both later, and get the same execution back. If
-// the replay diverges even slightly the profile describes a run that never
-// happened. Two things have to hold, and neither is documented:
-//
-//   1. The same state plus the same input really does reproduce the same run.
-//   2. Installing an execute callback does not itself change the result.
-//   3. The replay happens on the *same* simulation the recording came from.
-//      Not a design preference but a requirement: a state restored into a
-//      different simulation executes differently, because the core keeps a
-//      copy of the cartridge pointer that `vbSetCartROM` does not reach, and
-//      the stale one reads through a buffer belonging elsewhere. Measured —
-//      restoring into the source simulation reproduces the run exactly,
-//      restoring into a fresh one diverges within a few frames.
-//
-// Both are checked by comparing the *instruction streams* — every program
-// counter, in order — rather than the machine's bytes. Byte equality is the
-// wrong test and fails for an uninteresting reason: the state struct holds
-// absolute pointers into the core's heap (the cartridge, the sample buffer),
-// so two simulations running identically still differ wherever a pointer is
-// stored. The execution is what a profile is about, and it is what this
-// compares.
-//
-// Usage: node tests/replay-probe.mjs [path/to/output.vb]
+/**
+ * Does replaying a recording reproduce the session exactly? The export profiler rests on it, and nothing documents it.
+ * Checked: the same state plus input reproduces the run; an execute callback does not change it; and the replay runs on
+ * the same simulation the recording came from, as a state restored into another one diverges within a few frames (the
+ * core keeps a cartridge pointer copy vbSetCartROM does not reach). Runs are compared by instruction stream, not bytes,
+ * as the state struct holds absolute heap pointers that differ between identical runs.
+ * Usage: node tests/replay-probe.mjs [path/to/output.vb]
+ */
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { pathToFileURL } from 'url';
 
 const TABLE_SLOTS = 16;
-/** What the drive loop emulates per chunk: VB_CLOCK_RATE / VB_FRAME_RATE. */
+// what the drive loop emulates per chunk: VB_CLOCK_RATE / VB_FRAME_RATE
 const CLOCKS_PER_CHUNK = 20000000 / 50;
-/** Long enough for a real game to get through boot and into its first frames. */
+// long enough for a real game to get through boot and into its first frames
 const CHUNKS = 120;
 
-const repoRoot = new URL('../../../', import.meta.url).pathname;
-/** The emulator's own build, which these probes exercise. */
 const vueport = new URL('../', import.meta.url).pathname;
-const corePath = path.join(
-    repoRoot,
-    'applications/electron/binaries/vuengine-studio-tools/web/shrooms-vb-core/core.wasm'
-);
+const corePath = new URL('../wasm/shrooms/core.wasm', import.meta.url);
 const romPath = process.argv[2] ?? '/Users/chris/dev/vb/projects/formula-v/build/output.vb';
 
 if (!fs.existsSync(romPath)) {
@@ -64,7 +41,7 @@ const check = (label, actual, expected) => {
 };
 const report = (label, value) => console.log(`  --   ${label}: ${value}`);
 
-// --- Core setup (see write-callback-probe.mjs for the table patch) ----------
+// core setup (see write-callback-probe.mjs for the table patch)
 
 function readUleb(bytes, at) {
     let result = 0, shift = 0, length = 0, byte;
@@ -160,12 +137,12 @@ function newSim() {
 
 const snapshot = sim => new Uint8Array(E.memory.buffer, sim.pointer, STATE_SIZE).slice();
 
-/** One chunk, driven the way the worker's drive loop drives it. */
+// one chunk, driven the way the worker's drive loop drives it
 const sims = E.Realloc(0, 4);
 const clocks = E.Realloc(0, 4);
 function runChunk(sim) {
     new Uint32Array(E.memory.buffer, sims, 1)[0] = sim.pointer;
-    // 5 = F32; the drive loop rewinds the sample cursor every chunk.
+    // 5 = F32; the drive loop rewinds the sample cursor every chunk
     E.vbSetSamples(sim.pointer, sim.samples, 5, 20000000 / 50 / 500);
     new Uint32Array(E.memory.buffer, clocks, 1)[0] = CLOCKS_PER_CHUNK;
     while (new Uint32Array(E.memory.buffer, clocks, 1)[0] !== 0) {
@@ -173,15 +150,9 @@ function runChunk(sim) {
     }
 }
 
-/** A scripted input sequence, so the recording has something to reproduce. */
 const SCRIPT = new Map([[0, 0], [20, 0x0004], [40, 0x0204], [55, 0], [80, 0x0800]]);
 
-/**
- * A cheap order-sensitive digest of every program counter seen.
- *
- * Keeping the whole stream would be tens of millions of entries; this collapses
- * it to two numbers that any reordering, omission or divergence changes.
- */
+// a cheap order-sensitive digest of every program counter, as the whole stream would be tens of millions of entries
 function makeStream() {
     let hash = 0x811c9dc5;
     let count = 0;
@@ -200,7 +171,6 @@ function makeStream() {
     };
 }
 
-/** Install a no-op execute callback that only records the stream. */
 function watchStream(pointer, slot) {
     const stream = makeStream();
     instance.exports.__indirect_function_table.set(slot, makeTrampoline((unused, address) => {
@@ -211,24 +181,19 @@ function watchStream(pointer, slot) {
     return stream;
 }
 
-// --- 1. Record ---------------------------------------------------------------
-
 console.log('\n1. Recording a session');
 const recording = { state: null, chunks: 0, keys: [] };
 let originalStream;
 let recordedSim;
 {
     const sim = recordedSim = newSim();
-    // Let it boot before recording starts, so the recording begins mid-run —
-    // which is the realistic case and the one that exercises a mid-call start.
+    // boots before recording, so the recording begins mid-run, the realistic case that exercises a mid-call start
     for (let chunk = 0; chunk < 10; chunk++) {
         runChunk(sim);
     }
 
     recording.state = snapshot(sim).buffer;
-    // Watched from here on, so the original run's execution can be compared
-    // against the replay's. The recording itself does not need this — it is
-    // only the yardstick.
+    // watched from here on only as the yardstick for comparing against the replay
     originalStream = watchStream(sim.pointer, 2);
     let mask = 0;
     let last = 0;
@@ -253,14 +218,11 @@ let recordedSim;
         `${(recording.state.byteLength + recording.keys.length * 8).toLocaleString()} bytes`);
 }
 
-// --- 2. Replay ---------------------------------------------------------------
-
 console.log('\n2. Replaying it with an execute callback');
 let replayStream;
 let collector;
 {
-    // The same simulation, borrowed back — see the note at the top of this
-    // file for why a fresh one will not do.
+    // the same simulation, borrowed back; see the top of this file for why a fresh one will not do
     const sim = recordedSim;
     const kinds = decodeRomKinds(ROM);
     const mask = ROM.byteLength - 1;
@@ -299,8 +261,6 @@ let collector;
         + `(${(ms / recorded).toFixed(2)}x real time)`);
 }
 
-// --- 3. Did it reproduce the session? ---------------------------------------
-
 console.log('\n3. Comparing the two runs');
 {
     report('original instructions', originalStream.count.toLocaleString());
@@ -310,14 +270,10 @@ console.log('\n3. Comparing the two runs');
 
     check('the replay executed the same number of instructions',
         replayStream.count, originalStream.count);
-    // The whole export rests on this: same state, same input, same execution —
-    // and an execute callback that observes without disturbing, since the
-    // recording ran with a different one installed.
+    // same state, same input, same execution, with an execute callback that observes without disturbing
     check('the replay executed the same instructions in the same order',
         replayStream.digest, originalStream.digest);
 }
-
-// --- 4. What the replay collected -------------------------------------------
 
 console.log('\n4. The profile it produced');
 {
@@ -342,8 +298,6 @@ console.log('\n4. The profile it produced');
             + `self ${node.selfSamples.toLocaleString()} total ${node.totalSamples.toLocaleString()}`);
     }
 }
-
-// --- 5. The exported file ----------------------------------------------------
 
 console.log('\n5. Writing a Firefox Profiler file');
 {
@@ -378,8 +332,7 @@ console.log('\n5. Writing a Firefox Profiler file');
     }, 'formula-v');
 
     const json = JSON.stringify(profile);
-    // Into the system temp directory, not the repository: this is a sample to
-    // drop on profiler.firefox.com, not something to keep.
+    // a sample to drop on profiler.firefox.com, so the temp directory rather than the repository
     const out = path.join(os.tmpdir(), 'ves-profile-sample.json');
     fs.writeFileSync(out, json);
     report('written', `${out} (${(json.length / 1e6).toFixed(2)} MB)`);

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="dark light">
+    <title>VUEPort</title>
+    <meta name="description" content="A Virtual Boy emulator that runs in your browser.">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <meta name="theme-color" content="#17171a">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+    <link rel="stylesheet" href="<!--%CSS%-->">
+    <!--%PRELOAD%-->
+    <style>
+        :root {
+            --vp-boot-bg: #17171a;
+            --vp-boot-accent: #d4262c;
+        }
+
+        :root[data-theme="light"] {
+            --vp-boot-bg: #ffffff;
+            --vp-boot-accent: #c81f26;
+        }
+
+        html,
+        body {
+            background: var(--vp-boot-bg);
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .loader {
+            margin: 0 auto;
+            width: 120px;
+            height: 32px;
+            text-align: center;
+            font-size: 10px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            -webkit-transform: translateY(-50%) translateX(-50%);
+            
+            > div {
+                height: 100%;
+                width: 8px;
+                display: inline-block;
+                margin-left: 2px;
+                -webkit-animation: delay 0.8s infinite ease-in-out;
+                animation: delay 0.8s infinite ease-in-out;
+            }
+            
+            .bar1{
+                background-color: #ff0010;
+            }
+            .bar2{
+                background-color: #0050c0;
+                -webkit-animation-delay: -0.7s;
+                animation-delay: -0.7s;
+            }
+            .bar3{
+                background-color: #2caa30;
+                -webkit-animation-delay: -0.6s;
+                animation-delay: -0.6s;
+            }
+            .bar4{
+                background-color: #f8c800;
+                -webkit-animation-delay: -0.5s;
+                animation-delay: -0.5s;
+            }
+            .bar5{
+                background-color: #00b4e8;
+                -webkit-animation-delay: -0.4s;
+                animation-delay: -0.4s;
+            }
+            .bar6{
+                background-color: #8030f0;
+                -webkit-animation-delay: -0.3s;
+                animation-delay: -0.3s;
+            }
+        }
+
+        @-webkit-keyframes delay {
+            0%, 40%, 100% { -webkit-transform: scaleY(0.05) }  
+            20% { -webkit-transform: scaleY(1.0) }
+        }
+
+        @keyframes delay {
+            0%, 40%, 100% { 
+                transform: scaleY(0.05);
+                -webkit-transform: scaleY(0.05);
+            }  20% { 
+                transform: scaleY(1.0);
+                -webkit-transform: scaleY(1.0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="loader" aria-hidden="true">
+        <div class="bar1"></div>
+        <div class="bar2"></div>
+        <div class="bar3"></div>
+        <div class="bar4"></div>
+        <div class="bar5"></div>
+        <div class="bar6"></div>
+    </div>
+
+    <div id="root"></div>
+    <noscript>VUEPort needs JavaScript to run.</noscript>
+    <script>
+        (function () {
+            var root = document.documentElement;
+
+            try {
+                var build = <!--%BUILD%-->;
+                if (build && window.fetch) {
+                    fetch('./version.json', { cache: 'no-store' })
+                        .then(function (response) { return response.ok ? response.json() : undefined; })
+                        .then(function (current) {
+                            var latest = current && current.build;
+                            if (!latest || latest === build
+                                || sessionStorage.getItem('vueport.reloadedFor') === latest) {
+                                return;
+                            }
+                            sessionStorage.setItem('vueport.reloadedFor', latest);
+                            location.reload();
+                        })
+                        .catch(function () { 
+                            /* offline, or no storage: keep this page */
+                        });
+                }
+            } catch (error) {
+            }
+
+            try {
+                var stored = localStorage.getItem('vueport.theme');
+                root.setAttribute('data-theme',
+                    stored === 'light' || stored === 'dark'
+                        ? stored
+                        : window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches
+                            ? 'light'
+                            : 'dark');
+            } catch (error) {
+                root.setAttribute('data-theme', 'dark');
+            }
+
+            try {
+                var shipped = <!--%LOCALES%-->;
+                var chosen = localStorage.getItem('vueport.language');
+                var tag = shipped.indexOf(chosen) >= 0 ? chosen : undefined;
+                if (!tag) {
+                    var preferred = navigator.languages || [navigator.language || 'en'];
+                    for (var i = 0; i < preferred.length && !tag; i++) {
+                        var lower = String(preferred[i]).toLowerCase();
+                        var base = lower.split('-')[0];
+                        if (shipped.indexOf(lower) >= 0) { tag = lower; }
+                        else if (shipped.indexOf(base) >= 0) { tag = base; }
+                        else if (base === 'en') { break; }
+                        // pt and zh ship only as regional variants.
+                        else if (base === 'pt') { tag = 'pt-pt'; }
+                        else if (base === 'zh') { tag = 'zh-cn'; }
+                    }
+                }
+                if (tag) {
+                    window.__vueportLocale = {
+                        tag: tag,
+                        response: fetch('./i18n/nls.' + tag + '.json').catch(function () { return undefined; }),
+                    };
+                }
+            } catch (error) {
+            }
+        })();
+    </script>
+    <script type="module" src="<!--%JS%-->"></script>
+</body>
+
+</html>

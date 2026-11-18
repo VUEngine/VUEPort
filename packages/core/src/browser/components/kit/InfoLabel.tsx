@@ -1,6 +1,12 @@
 import React, { PropsWithChildren, ReactElement } from 'react';
 import HoverInfo from './HoverInfo';
 import { VueportHover } from './KitContext';
+import styled from 'styled-components';
+
+const FlexLabel = styled.label`
+    display: flex;
+    gap: var(--vp-space-half);
+`;
 
 interface InfoLabelProps {
     label: string
@@ -14,7 +20,7 @@ interface InfoLabelProps {
 export default function InfoLabel(props: PropsWithChildren<InfoLabelProps>): React.JSX.Element {
     const { label, subLabel, tooltip, count, hover, style } = props;
 
-    return <label style={{ whiteSpace: 'nowrap', ...style }}>
+    return <FlexLabel style={{ whiteSpace: 'nowrap', ...style }}>
         {label}
         {count && <>
             {' '}<span className='count'>{count}</span>
@@ -28,5 +34,5 @@ export default function InfoLabel(props: PropsWithChildren<InfoLabelProps>): Rea
         {subLabel && <>
             {' '}<span className='lightLabel'>{subLabel}</span>
         </>}
-    </label>;
+    </FlexLabel>;
 }

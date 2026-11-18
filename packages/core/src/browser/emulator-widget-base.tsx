@@ -4,19 +4,10 @@ import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { Disposable, DisposableCollection } from '../common/emulator-events';
 
-/**
- * A Lumino widget with somewhere to put things that have to be released.
- *
- * This is what Theia's `BaseWidget` is used for here and nothing more: Lumino's
- * own `Widget` already provides the node, the title, the classes, `update()`
- * and every lifecycle hook the panels override. Only the two disposable bags
- * are missing, so only they are added.
- */
+// a Lumino widget with the two disposable bags, which is all Theia's BaseWidget added here
 export class VueportWidget extends Widget {
 
-    /** Released when the widget is disposed. */
     protected readonly toDispose = new DisposableCollection();
-    /** Released every time the widget leaves the DOM, and refilled on the way back in. */
     protected readonly toDisposeOnDetach = new DisposableCollection();
 
     dispose(): void {
@@ -34,19 +25,9 @@ export class VueportWidget extends Widget {
     }
 }
 
-/**
- * A widget whose content is React.
- *
- * Rendered from `onUpdateRequest`, which is what `update()` schedules, so a
- * panel redraws by calling `update()` and never touches React itself.
- *
- * Unlike Theia's `ReactWidget` there is no PerfectScrollbar: every panel here
- * turned it off anyway. It fought the plain `overflow: auto` the panels' own
- * CSS sets — pinning the container to `overflow: hidden` and layering a
- * synthetic rail over it, so a panel whose content merely grew taller showed
- * two scrollbars at once — and it blocked horizontal scrolling outright, which
- * the wide tables (VSU, Memory) need and native scrolling gives for free.
- */
+// a widget whose content is React, rendered from onUpdateRequest, so a panel redraws by calling update(). Unlike
+// Theia's ReactWidget no PerfectScrollbar: it fought the panels' own `overflow: auto`, showing two scrollbars at once,
+// and blocked horizontal scrolling, which the wide tables (VSU, Memory) need
 export abstract class VueportReactWidget extends VueportWidget {
 
     protected readonly nodeRoot: Root;
@@ -54,20 +35,56 @@ export abstract class VueportReactWidget extends VueportWidget {
     constructor() {
         super();
         this.nodeRoot = createRoot(this.node);
-        // Unmounting is deferred because React refuses to unmount a root from
-        // inside a render or lifecycle it is currently running, which is
-        // exactly where a widget disposed by its own content would be.
+        // deferred, as React refuses to unmount a root from inside a render or lifecycle it is running, which is where
+        // a widget disposed by its own content would be
         this.toDispose.push(Disposable.create(() =>
             setTimeout(() => this.nodeRoot.unmount(), 0)
         ));
     }
 
+    // counts the trees handed to React, so a callback knows which commit first shows the state it was queued after
+    protected renderGeneration = 0;
+    protected readonly afterCommit: { generation: number; callback: () => void }[] = [];
+
     protected onUpdateRequest(msg: Message): void {
         super.onUpdateRequest(msg);
         if (!this.isDisposed) {
-            this.nodeRoot.render(<>{this.render()}</>);
+            const generation = ++this.renderGeneration;
+            this.nodeRoot.render(<Committed generation={generation} onCommit={done => this.committed(done)}>
+                {this.render()}
+            </Committed>);
         }
     }
 
+    // runs `callback` once React has put a tree built after this call into the DOM. A bare requestAnimationFrame is too
+    // early: Lumino updates in a frame of its own and React commits later still, so callbacks saw the old state
+    protected whenRendered(callback: () => void): void {
+        this.afterCommit.push({ generation: this.renderGeneration, callback });
+        this.update();
+    }
+
+    // React may drop a tree that was replaced before it committed, so every callback queued before `generation` is due
+    protected committed(generation: number): void {
+        if (this.isDisposed) {
+            return;
+        }
+        const due = this.afterCommit.filter(entry => entry.generation < generation);
+        if (due.length === 0) {
+            return;
+        }
+        this.afterCommit.splice(0, this.afterCommit.length,
+            ...this.afterCommit.filter(entry => entry.generation >= generation));
+        due.forEach(entry => entry.callback());
+    }
+
     protected abstract render(): React.ReactNode;
+}
+
+function Committed({ generation, onCommit, children }: {
+    generation: number;
+    onCommit: (generation: number) => void;
+    children?: React.ReactNode;
+}): React.ReactElement {
+    React.useLayoutEffect(() => onCommit(generation), [generation]);
+    return <>{children}</>;
 }

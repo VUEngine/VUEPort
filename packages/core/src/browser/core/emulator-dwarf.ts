@@ -1,61 +1,36 @@
-/**
- * Enough DWARF to know where a class keeps its fields.
- *
- * Reading an object out of a pool block needs the offset of every field in it,
- * and nothing in the symbol table says where they are — a struct is one opaque
- * run of bytes as far as `.symtab` is concerned. The debug sections do say,
- * and the toolchain emits them in every build mode, so this is available
- * wherever the `.elf` itself is.
- *
- * Only what a value inspector needs is read: named struct definitions, their
- * members' offsets, and enough of each member's type to decode the bytes
- * there. Everything else in the tree is walked past.
- *
- * VUEngine's class macro flattens inheritance, so `Actor_str` carries the
- * fields of `Container`, `Entity` and the rest inline, in that order — there
- * is no base-class link to follow, and a subclass' own struct describes the
- * whole object.
- */
+// just enough DWARF for member offsets and types, which the debug sections have in every build mode. VUEngine's class
+// macro flattens inheritance (`Actor_str` carries `Container`'s and `Entity`'s fields inline, in that order), so a
+// subclass' own struct describes the whole object
 
-import { VesElfImage } from './emulator-elf';
+import { ElfImage } from './emulator-elf';
 
-/** How a member's bytes should be read. */
 export enum VesTypeKind {
     SIGNED = 'signed',
     UNSIGNED = 'unsigned',
     BOOL = 'bool',
     FLOAT = 'float',
     POINTER = 'pointer',
-    /** A nested struct, whose own members are spliced in by the reader. */
-    STRUCT = 'struct',
+    STRUCT = 'struct', // its members are spliced in by the reader
     ARRAY = 'array',
-    /** Anything this does not decode — shown as raw bytes. */
-    OPAQUE = 'opaque',
+    OPAQUE = 'opaque', // shown as raw bytes
 }
 
 export interface VesType {
     kind: VesTypeKind;
-    /** The name the source gave it, for display: `int16`, `Vector3D`. */
-    name: string;
+    name: string; // as the source wrote it: `int16`, `Vector3D`
     byteSize: number;
-    /** For STRUCT, the definition to descend into. */
     struct?: VesStruct;
+    element?: VesType;
+    count?: number; // for ARRAY, where the build says
 }
 
 export interface VesStructMember {
     name: string;
-    /** Bytes from the start of the struct. */
     offset: number;
     type: VesType;
-    /** Width in bits for a bitfield. Absent for an ordinary member. */
-    bitSize?: number;
-    /**
-     * Where the bitfield's low bit sits, counted in bits from the start of the
-     * struct with the target's little-endian byte order already applied — so
-     * the value is `(bits >> bitOffset) & mask` over the whole struct. The two
-     * ways DWARF describes a bitfield are both normalised to this; see
-     * `bitPosition`.
-     */
+    bitSize?: number; // bitfields only
+    // in bits from the start of the struct, little-endian already applied, so the value is `(bits >> bitOffset) & mask`
+    // over the whole struct. Both DWARF bitfield forms are normalized to this
     bitOffset?: number;
 }
 
@@ -65,7 +40,6 @@ export interface VesStruct {
     members: VesStructMember[];
 }
 
-// The handful of DWARF constants this needs.
 const TAG_ARRAY = 0x01;
 const TAG_ENUM = 0x04;
 const TAG_MEMBER = 0x0d;
@@ -76,6 +50,9 @@ const TAG_BASE = 0x24;
 const TAG_CONST = 0x26;
 const TAG_VOLATILE = 0x35;
 const TAG_UNION = 0x17;
+const TAG_COMPILE_UNIT = 0x11;
+const TAG_SUBRANGE = 0x21;
+const TAG_VARIABLE = 0x34;
 
 const AT_NAME = 0x03;
 const AT_BYTE_SIZE = 0x0b;
@@ -86,8 +63,10 @@ const AT_DECLARATION = 0x3c;
 const AT_ENCODING = 0x3e;
 const AT_TYPE = 0x49;
 const AT_DATA_BIT_OFFSET = 0x6b;
+const AT_UPPER_BOUND = 0x2f;
+const AT_COUNT = 0x37;
+const AT_SPECIFICATION = 0x47;
 
-// DW_ATE_*: how a base type's bytes mean a number.
 const ATE_BOOLEAN = 0x02;
 const ATE_FLOAT = 0x04;
 const ATE_SIGNED = 0x05;
@@ -95,8 +74,7 @@ const ATE_SIGNED_CHAR = 0x06;
 const ATE_UNSIGNED = 0x07;
 const ATE_UNSIGNED_CHAR = 0x08;
 
-/** How deep a chain of typedefs and qualifiers is followed before giving up. */
-const MAX_TYPE_DEPTH = 16;
+const MAX_TYPE_DEPTH = 16; // typedefs and qualifiers followed before giving up
 
 interface Die {
     tag: number;
@@ -104,37 +82,72 @@ interface Die {
     children: Die[];
 }
 
-/**
- * Every named struct a build defines, by name.
- *
- * Returns an empty map for an image with no debug sections, which is an
- * ordinary state rather than a failure: it only means field-level inspection
- * is unavailable for that ROM.
- */
-export function readDwarfStructs(image: VesElfImage): Map<string, VesStruct> {
-    const info = image.section('.debug_info');
-    const abbreviations = image.section('.debug_abbrev');
-    if (!info || !abbreviations) {
+// empty for an image without debug sections, which only turns off field-level inspection
+export function readDwarfStructs(image: ElfImage): Map<string, VesStruct> {
+    const parsed = parseDwarf(image);
+    if (!parsed) {
         return new Map();
     }
-    const strings = image.section('.debug_str');
-
-    const dies = new Map<number, Die>();
-    const definitions = new Map<string, Die>();
-    const reader = new DwarfReader(info, abbreviations, strings, dies, definitions);
-    reader.readUnits();
-
-    // Structs are resolved lazily and memoised, since members refer to other
-    // structs and a type graph this size should only be walked once.
-    const resolved = new Map<Die, VesStruct>();
     const structs = new Map<string, VesStruct>();
-    for (const [name, die] of definitions) {
-        structs.set(name, resolveStruct(name, die, dies, resolved));
+    for (const [name, die] of parsed.definitions) {
+        structs.set(name, resolveStruct(name, die, parsed.dies, parsed.resolved));
     }
     return structs;
 }
 
-/** Walks `.debug_info`, keeping only what struct layouts are made of. */
+// turns an address inside a global back into its field (four bytes into `g_stats` is `lives`). Statics of the same
+// name in two files get the first one's type, as the symbol table cannot tell them apart either
+export function readDwarfVariables(image: ElfImage): Map<string, VesType> {
+    const parsed = parseDwarf(image);
+    const variables = new Map<string, VesType>();
+    if (!parsed) {
+        return variables;
+    }
+    // definitions first, as an `extern int16 table[];` in a header has no bounds
+    const ordered = [
+        ...parsed.variables.filter(die => !die.attributes.has(AT_DECLARATION)),
+        ...parsed.variables.filter(die => die.attributes.has(AT_DECLARATION)),
+    ];
+    for (const die of ordered) {
+        // a definition of something declared elsewhere only links to the declaration, which has the name and type
+        const declaration = parsed.dies.get(numberAttribute(die, AT_SPECIFICATION) ?? -1);
+        const name = die.attributes.get(AT_NAME) ?? declaration?.attributes.get(AT_NAME);
+        const type = die.attributes.get(AT_TYPE) ?? declaration?.attributes.get(AT_TYPE);
+        if (typeof name !== 'string' || type === undefined || variables.has(name)) {
+            continue;
+        }
+        variables.set(name, resolveType(type, parsed.dies, parsed.resolved));
+    }
+    return variables;
+}
+
+interface ParsedDwarf {
+    dies: Map<number, Die>;
+    definitions: Map<string, Die>;
+    variables: Die[]; // file-scope only, declarations and definitions alike
+    resolved: Map<Die, VesStruct>;
+}
+
+// both readers want the same tree, and it is not small
+const parsedImages = new WeakMap<ElfImage, ParsedDwarf | undefined>();
+
+function parseDwarf(image: ElfImage): ParsedDwarf | undefined {
+    if (parsedImages.has(image)) {
+        return parsedImages.get(image);
+    }
+    const info = image.section('.debug_info');
+    const abbreviations = image.section('.debug_abbrev');
+    let parsed: ParsedDwarf | undefined;
+    if (info && abbreviations) {
+        parsed = { dies: new Map(), definitions: new Map(), variables: [], resolved: new Map() };
+        const reader = new DwarfReader(info, abbreviations, image.section('.debug_str'), parsed.dies, parsed.definitions, parsed.variables);
+        reader.readUnits();
+    }
+    parsedImages.set(image, parsed);
+    return parsed;
+}
+
+// keeps only what struct layouts and global variables are made of
 class DwarfReader {
 
     constructor(
@@ -142,28 +155,25 @@ class DwarfReader {
         protected readonly abbreviations: Uint8Array,
         protected readonly strings: Uint8Array | undefined,
         protected readonly dies: Map<number, Die>,
-        protected readonly definitions: Map<string, Die>
+        protected readonly definitions: Map<string, Die>,
+        protected readonly variables: Die[]
     ) { }
 
     protected readonly view = new DataView(this.info.buffer, this.info.byteOffset, this.info.byteLength);
 
     readUnits(): void {
         let at = 0;
-        // Each compilation unit carries its own header and abbreviation table,
-        // and there is one per translation unit in the build.
         while (at + 11 <= this.info.byteLength) {
             const unitLength = this.view.getUint32(at, true);
             const end = at + 4 + unitLength;
-            // A length that runs past the section is a section this cannot
-            // read; stopping keeps whatever was read before it.
+            // stopping at a broken length keeps whatever was read before it
             if (unitLength === 0 || end > this.info.byteLength) {
                 return;
             }
             const version = this.view.getUint16(at + 4, true);
             const abbreviationOffset = this.view.getUint32(at + 6, true);
             const addressSize = this.info[at + 10];
-            // 2 through 4 all lay the header out this way. 5 moved things
-            // around, and is left alone rather than misread.
+            // 2 to 4 share this header layout; 5 changed it and is left alone rather than misread
             if (version >= 2 && version <= 4) {
                 this.readUnit(at + 11, end, at, addressSize, this.readAbbreviations(abbreviationOffset));
             }
@@ -171,7 +181,6 @@ class DwarfReader {
         }
     }
 
-    /** One unit's abbreviation table: the shape of every DIE it contains. */
     protected readAbbreviations(offset: number): Map<number, { tag: number, hasChildren: boolean, attributes: [number, number][] }> {
         const table = new Map<number, { tag: number, hasChildren: boolean, attributes: [number, number][] }>();
         let at = offset;
@@ -214,15 +223,12 @@ class DwarfReader {
             const [code, afterCode] = uleb(this.info, at);
             at = afterCode;
             if (code === 0) {
-                // The null entry that closes a run of siblings.
-                stack.pop();
+                stack.pop(); // the null entry that closes a run of siblings
                 continue;
             }
             const abbreviation = table.get(code);
             if (!abbreviation) {
-                // Without the abbreviation there is no way to know how long
-                // this entry is, so the rest of the unit is unreadable.
-                return;
+                return; // without the abbreviation the entry's length is unknown, so the rest is unreadable
             }
 
             const attributes = new Map<number, number | string>();
@@ -238,15 +244,17 @@ class DwarfReader {
             this.dies.set(dieOffset, die);
 
             const parent = stack[stack.length - 1];
-            // Only members are kept as children: nothing else in a struct's
-            // subtree contributes to its layout.
-            if (parent && abbreviation.tag === TAG_MEMBER) {
+            // only members and an array's subranges are kept as children, nothing else contributes to a layout
+            if (parent && (abbreviation.tag === TAG_MEMBER || (abbreviation.tag === TAG_SUBRANGE && parent.tag === TAG_ARRAY))) {
                 parent.children.push(die);
+            }
+            // file-scope only, as a local's address is a frame offset
+            if (abbreviation.tag === TAG_VARIABLE && stack.length === 1 && parent.tag === TAG_COMPILE_UNIT) {
+                this.variables.push(die);
             }
 
             const name = attributes.get(AT_NAME);
-            // A declaration is the forward reference a header leaves behind;
-            // the definition is the one that says how big it is.
+            // only the definition says how big it is, a declaration is a header's forward reference
             if (abbreviation.tag === TAG_STRUCT && typeof name === 'string'
                 && !attributes.has(AT_DECLARATION) && attributes.has(AT_BYTE_SIZE)) {
                 this.definitions.set(name, die);
@@ -258,11 +266,7 @@ class DwarfReader {
         }
     }
 
-    /**
-     * One attribute value, by form. Forms this does not decode into something
-     * useful return undefined, having still advanced past their bytes — which
-     * is the part that matters, since the next attribute follows immediately.
-     */
+    // forms not decoded return undefined but still advance past their bytes
     protected readValue(at: number, form: number, addressSize: number, unitOffset: number): [number | string | undefined, number] {
         switch (form) {
             case 0x01: return [this.view.getUint32(at, true), at + addressSize]; // addr
@@ -309,14 +313,12 @@ class DwarfReader {
             case 0x19: return [1, at]; // flag_present, which occupies nothing
             case 0x20: return [undefined, at + 8]; // ref_sig8
             default:
-                // An unknown form has an unknown length, so the caller cannot
-                // keep going. Returning the end stops this unit cleanly.
+                // an unknown form has an unknown length, so this stops the unit cleanly
                 return [undefined, this.info.byteLength];
         }
     }
 }
 
-/** Turn a struct DIE and its members into a layout, following type links. */
 function resolveStruct(
     name: string, die: Die, dies: Map<number, Die>, resolved: Map<Die, VesStruct>
 ): VesStruct {
@@ -325,9 +327,7 @@ function resolveStruct(
         return existing;
     }
     const struct: VesStruct = { name, byteSize: numberAttribute(die, AT_BYTE_SIZE) ?? 0, members: [] };
-    // Registered before its members are walked, so a struct that contains a
-    // pointer back to its own kind terminates instead of recursing forever.
-    resolved.set(die, struct);
+    resolved.set(die, struct); // before walking the members, so a self-referencing struct does not recurse forever
 
     for (const member of die.children) {
         const memberName = member.attributes.get(AT_NAME);
@@ -346,7 +346,7 @@ function resolveStruct(
     return struct;
 }
 
-/** What a type reference finally denotes, past typedefs and qualifiers. */
+// past typedefs and qualifiers
 function resolveType(
     reference: number | string | undefined, dies: Map<string | number, Die> | Map<number, Die>, resolved: Map<Die, VesStruct>
 ): VesType {
@@ -360,8 +360,7 @@ function resolveType(
 
         switch (current.tag) {
             case TAG_TYPEDEF:
-                // Keep the first name seen: `int16` reads better than the
-                // `short int` it is a typedef for.
+                // the first name seen: `int16` reads better than the `short int` it is a typedef for
                 label = label || (typeof name === 'string' ? name : '');
                 current = (dies as Map<number, Die>).get(numberAttribute(current, AT_TYPE) ?? -1);
                 continue;
@@ -387,8 +386,18 @@ function resolveType(
             }
             case TAG_ENUM:
                 return { kind: VesTypeKind.UNSIGNED, name: label || (typeof name === 'string' ? name : 'enum'), byteSize };
-            case TAG_ARRAY:
-                return { kind: VesTypeKind.ARRAY, name: label || 'array', byteSize };
+            case TAG_ARRAY: {
+                const element = resolveType(current.attributes.get(AT_TYPE), dies, resolved);
+                const count = elementCount(current);
+                return {
+                    kind: VesTypeKind.ARRAY,
+                    name: label || `${element.name}[${count ?? ''}]`,
+                    // GCC gives an array no size of its own
+                    byteSize: byteSize || (count !== undefined ? count * element.byteSize : 0),
+                    element,
+                    ...(count !== undefined ? { count } : {}),
+                };
+            }
             case TAG_UNION:
                 return { kind: VesTypeKind.OPAQUE, name: label || 'union', byteSize };
             default:
@@ -398,17 +407,28 @@ function resolveType(
     return unknown;
 }
 
-/**
- * Where a bitfield's low bit is, in bits from the start of the struct.
- *
- * DWARF describes a bitfield in one of two ways, and GCC picks by version
- * rather than by target. Version 4 added `DW_AT_data_bit_offset`, which is
- * already what is wanted: bits from the start of the struct, counted the way
- * the target orders them. Before that it used `DW_AT_bit_offset`, which counts
- * from the *most* significant bit of the storage unit the field sits in — so
- * on a little-endian target it has to be turned around, and the storage unit's
- * own size is what it is turned around within.
- */
+// all dimensions multiplied out, undefined for open bounds (`extern int table[];`)
+function elementCount(array: Die): number | undefined {
+    let count = 1;
+    let any = false;
+    for (const subrange of array.children) {
+        if (subrange.tag !== TAG_SUBRANGE) {
+            continue;
+        }
+        const upper = numberAttribute(subrange, AT_UPPER_BOUND);
+        const length = numberAttribute(subrange, AT_COUNT) ?? (upper !== undefined ? upper + 1 : undefined);
+        if (length === undefined) {
+            return undefined;
+        }
+        count *= length;
+        any = true;
+    }
+    return any ? count : undefined;
+}
+
+// where a bitfield's low bit is, in bits from the start of the struct. GCC picks the DWARF form by version, not by
+// target: version 4's `DW_AT_data_bit_offset` is already that; the older `DW_AT_bit_offset` counts from the most
+// significant bit of the field's storage unit, so on a little-endian target it is turned around within that unit
 function bitPosition(member: Die, offset: number, bitSize: number): number | undefined {
     const dataBitOffset = numberAttribute(member, AT_DATA_BIT_OFFSET);
     if (dataBitOffset !== undefined) {
@@ -439,14 +459,11 @@ function numberAttribute(die: Die, attribute: number): number | undefined {
     return typeof value === 'number' ? value : undefined;
 }
 
-/** An unsigned LEB128 and the offset past it. */
 function uleb(bytes: Uint8Array, at: number): [number, number] {
     let result = 0;
     let shift = 0;
     for (let offset = at; offset < bytes.byteLength; offset++) {
         const byte = bytes[offset];
-        // Beyond 28 bits the shift would overflow a 32-bit intermediate; the
-        // values here — offsets and sizes — never come near it.
         result += (byte & 0x7f) * Math.pow(2, shift);
         shift += 7;
         if ((byte & 0x80) === 0) {
@@ -456,7 +473,6 @@ function uleb(bytes: Uint8Array, at: number): [number, number] {
     return [result, bytes.byteLength];
 }
 
-/** A signed LEB128 and the offset past it. */
 function sleb(bytes: Uint8Array, at: number): [number, number] {
     let result = 0;
     let shift = 0;
@@ -474,7 +490,6 @@ function sleb(bytes: Uint8Array, at: number): [number, number] {
     return [result, bytes.byteLength];
 }
 
-/** A NUL-terminated string, and the offset past its terminator. */
 function readCString(bytes: Uint8Array, at: number): [string, number] {
     let end = at;
     while (end < bytes.byteLength && bytes[end] !== 0) {
@@ -483,37 +498,20 @@ function readCString(bytes: Uint8Array, at: number): [string, number] {
     return [String.fromCharCode(...bytes.subarray(at, end)), end + 1];
 }
 
-/** One field of a struct, decoded from an object's bytes. */
 export interface VesFieldValue {
-    /** The member's name, as the source calls it. */
     name: string;
-    /** Qualified by its parents for a nested member: `transformation.position.x`. */
-    path: string;
-    /** How far in it is nested, for indenting a listing. */
+    path: string; // qualified by its parents: `transformation.position.x`
     depth: number;
-    /** Bytes from the start of the object. */
-    offset: number;
+    offset: number; // relative to the immediate parent
     type: VesType;
-    /** The decoded number, where the type decodes to one. */
-    value?: number;
-    /** What to show, always set. */
+    value?: number; // where the type decodes to a number
     text: string;
 }
 
-/** How far into nested structs the reader descends before it stops. */
 const MAX_NESTING = 4;
 
-/**
- * Decode an object, field by field, flattening nested structs into the list.
- *
- * A struct member is spliced in rather than summarised, so a `Transformation`
- * becomes `transformation.position.x` and so on: those leaves are the part
- * anyone reading an actor is actually after, and a line saying `position` is a
- * `Vector3D` says nothing they did not already know.
- *
- * @param bytes a window containing the object
- * @param at where the object starts within it
- */
+// nested structs are spliced in rather than summarized, as the leaves are what anyone reading an actor is after.
+// `bytes` is a window containing the object, `at` where the object starts within it
 export function readStructFields(
     struct: VesStruct, bytes: Uint8Array, at: number, depth = 0, prefix = ''
 ): VesFieldValue[] {
@@ -543,7 +541,42 @@ export function readStructFields(
     return fields;
 }
 
-/** The number at a member's position, or undefined if it is not a number. */
+export interface VesMemberAt {
+    path: string;
+    type: VesType;
+    offset: number; // from the start of the whole object, unlike VesFieldValue's
+    within: number; // how far into the member the byte is
+}
+
+/**
+ * Which field a byte of an object belongs to, for a caller holding an address (a hex dump). Offsets come back absolute,
+ * unlike VesFieldValue's, which are relative to the immediate parent. Nested structs are descended into, so the answer
+ * is a leaf (`position.x`). Arrays are not, as their element type is not kept, so the answer is the array itself and
+ * how far into it the byte is.
+ */
+export function findStructMemberAt(
+    struct: VesStruct, offset: number, base = 0, prefix = '', depth = 0
+): VesMemberAt | undefined {
+    for (const member of struct.members) {
+        const start = base + member.offset;
+        // a bitfield shares its bytes with its neighbours, so it is reported as covering the ones its type spans
+        const end = start + Math.max(member.type.byteSize, 1);
+        if (offset < start || offset >= end) {
+            continue;
+        }
+        const path = prefix === '' ? member.name : `${prefix}.${member.name}`;
+        if (member.type.kind === VesTypeKind.STRUCT && member.type.struct && depth < MAX_NESTING) {
+            const nested = findStructMemberAt(member.type.struct, offset, start, path, depth + 1);
+            // padding inside a nested struct falls through to the struct itself
+            if (nested) {
+                return nested;
+            }
+        }
+        return { path, type: member.type, offset: start, within: offset - start };
+    }
+    return undefined;
+}
+
 function readMemberValue(
     member: VesStructMember, view: DataView, structAt: number, offset: number
 ): number | undefined {
@@ -573,13 +606,7 @@ function readMemberValue(
     }
 }
 
-/**
- * A run of bits out of the object.
- *
- * Read a byte at a time from the containing byte upwards, which keeps this
- * correct for a field that straddles a byte boundary without ever building a
- * number wider than the 32 bits a shift can hold.
- */
+// bit by bit, so a field straddling a byte boundary never needs a number wider than the 32 bits a shift can hold
 function readBits(view: DataView, structAt: number, bitOffset: number, bitSize: number): number | undefined {
     let result = 0;
     for (let bit = 0; bit < bitSize; bit++) {
@@ -595,7 +622,6 @@ function readBits(view: DataView, structAt: number, bitOffset: number, bitSize: 
     return result;
 }
 
-/** What a decoded field should read as. */
 function formatValue(member: VesStructMember, value: number | undefined): string {
     if (value === undefined) {
         return '—';
@@ -604,7 +630,6 @@ function formatValue(member: VesStructMember, value: number | undefined): string
         return value !== 0 ? 'true' : 'false';
     }
     if (member.type.kind === VesTypeKind.POINTER) {
-        // NULL is worth saying outright: it is a state, not an address.
         return value === 0 ? 'NULL' : `0x${(value >>> 0).toString(16).toUpperCase().padStart(8, '0')}`;
     }
     if (member.type.kind === VesTypeKind.FLOAT) {

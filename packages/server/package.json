@@ -1,0 +1,20 @@
+{
+  "name": "vueport-server",
+  "version": "1.0.0",
+  "description": "A small PHP proxy to access Planet VB and RetroAchievements APIs in the web version",
+  "license": "MIT",
+  "author": "KR155E <c.radke@posteo.de>",
+  "private": true,
+  "files": [
+    "public",
+    "src"
+  ],
+  "scripts": {
+    "build": "echo Nothing to build: plain PHP, deployed as it stands.",
+    "clean": "echo Nothing to clean: this package builds nothing.",
+    "lint": "find src public -name '*.php' -print0 | xargs -0 -n1 php -l",
+    "lint:fix": "echo Nothing to fix automatically: lint here is php -l, a syntax check.",
+    "serve": "php -S 127.0.0.1:8787 -t public public/router.php",
+    "test": "php tests/proxy-logic-test.php && node tests/server-probe.mjs"
+  }
+}

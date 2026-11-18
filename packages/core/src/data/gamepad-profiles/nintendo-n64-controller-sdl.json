@@ -1,0 +1,154 @@
+{
+    "format": "vueport-gamepad-profile",
+    "version": 1,
+    "id": "nintendo-n64-controller-sdl",
+    "name": "Nintendo N64 Controller",
+    "family": "generic",
+    "match": {
+        "device": "057e:2019",
+        "mapping": "standard",
+        "engine": "sdl"
+    },
+    "deadZone": 0.5,
+    "buttons": {
+        "a": [
+            {
+                "kind": "button",
+                "index": 0
+            }
+        ],
+        "b": [
+            {
+                "kind": "button",
+                "index": 1
+            }
+        ],
+        "select": [
+            {
+                "kind": "button",
+                "index": 17
+            }
+        ],
+        "start": [
+            {
+                "kind": "button",
+                "index": 9
+            }
+        ],
+        "lTrigger": [
+            {
+                "kind": "button",
+                "index": 4
+            }
+        ],
+        "rTrigger": [
+            {
+                "kind": "button",
+                "index": 5
+            }
+        ],
+        "lUp": [
+            {
+                "kind": "button",
+                "index": 12
+            },
+            {
+                "kind": "axis",
+                "index": 1,
+                "direction": -1
+            }
+        ],
+        "lDown": [
+            {
+                "kind": "button",
+                "index": 13
+            },
+            {
+                "kind": "axis",
+                "index": 1,
+                "direction": 1
+            }
+        ],
+        "lLeft": [
+            {
+                "kind": "button",
+                "index": 14
+            },
+            {
+                "kind": "axis",
+                "index": 0,
+                "direction": -1
+            }
+        ],
+        "lRight": [
+            {
+                "kind": "button",
+                "index": 15
+            },
+            {
+                "kind": "axis",
+                "index": 0,
+                "direction": 1
+            }
+        ],
+        "rUp": [
+            {
+                "kind": "button",
+                "index": 8
+            }
+        ],
+        "rDown": [
+            {
+                "kind": "button",
+                "index": 2
+            }
+        ],
+        "rLeft": [
+            {
+                "kind": "button",
+                "index": 3
+            }
+        ],
+        "rRight": [
+            {
+                "kind": "button",
+                "index": 18
+            }
+        ]
+    },
+    "actions": {
+        "commandPalette": [
+            {
+                "kind": "button",
+                "index": 16
+            }
+        ],
+        "rewind": [
+            {
+                "kind": "button",
+                "index": 6
+            }
+        ],
+        "toggleFastForward": [
+            {
+                "kind": "button",
+                "index": 7
+            }
+        ]
+    },
+    "labels": {
+        "b1": "B",
+        "b0": "A",
+        "b8": "C↑",
+        "b2": "C↓",
+        "b3": "C←",
+        "b18": "C→",
+        "b4": "L",
+        "b5": "R",
+        "b6": "Z",
+        "b7": "ZR",
+        "b9": "Start",
+        "b16": "♥",
+        "b17": "★"
+    }
+}

@@ -1,14 +1,10 @@
-// Checks that the emulator's own translations work on their own, without a
-// host: that a shipped file is flattened into the keys the call sites use, that
-// a translated string comes back translated, that an untranslated one falls
-// back to the English default the call site carries rather than to nothing, and
-// that format arguments substitute either way.
-//
-// This is what vueport.net and the native wrapper rely on — in VES,
-// Theia supplies the implementation instead (see setLocalization in the
-// emulator's frontend module).
-//
-// Usage: node tests/nls-probe.mjs
+/**
+ * Checks the emulator's own translations without a host: a shipped file is flattened into the call sites' keys,
+ * translated strings come back translated, untranslated ones fall back to the call site's English default, and format
+ * arguments substitute either way. vueport.net and the native wrapper rely on this; in VES, Theia supplies the
+ * implementation (see setLocalization in the emulator's frontend module).
+ * Usage: node tests/nls-probe.mjs
+ */
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -31,8 +27,7 @@ function section(name) {
 
 section('Flattening a shipped file');
 {
-    // `/` rather than Theia's `.`, because that is what the keys in the source
-    // are written with.
+    // `/` rather than Theia's `.`, as the keys in the source are written with it
     check('nested objects become slash-separated keys',
         flattenTranslations({ vueport: { a: 'A', b: { c: 'C' } } }),
         { 'vueport/a': 'A', 'vueport/b/c': 'C' });
@@ -41,19 +36,18 @@ section('Flattening a shipped file');
 section('With no translation installed');
 {
     check('the English default is what shows',
-        nls.localize('vueport/pause', 'Pause'), 'Pause');
+        nls.localize('vueport/state/pause', 'Pause'), 'Pause');
 }
 
 section('With the shipped German file');
 {
     useTranslations(require(ext + 'i18n/nls.de.json'));
     check('a translated string is translated',
-        nls.localize('vueport/mute', 'Mute'), 'Stummschalten');
-    check('and another', nls.localize('vueport/resume', 'Resume'), 'Fortsetzen');
-    // The file is a partial translation, which has to read as English where it
-    // stops rather than as a blank.
+        nls.localize('vueport/state/mute', 'Mute'), 'Stummschalten');
+    check('and another', nls.localize('vueport/state/resume', 'Resume'), 'Fortsetzen');
+    // a partial translation has to read as English where it stops rather than as a blank
     check('an untranslated key falls back to its English default',
-        nls.localize('vueport/panels/worlds/title', 'Worlds'), 'Worlds');
+        nls.localize('vueport/debug/panels/worlds/title', 'Worlds'), 'Worlds');
 }
 
 section('Format arguments');

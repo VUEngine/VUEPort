@@ -26,7 +26,7 @@ export default function HContainer(props: PropsWithChildren<HContainerProps>): R
             flexDirection: 'row',
             flexGrow: grow,
             flexWrap: wrap !== undefined ? wrap : 'nowrap',
-            gap: gap !== undefined ? gap : 5,
+            gap: gap !== undefined ? gap : 'var(--vp-space)',
             justifyContent,
             overflow,
             ...(style || {}),

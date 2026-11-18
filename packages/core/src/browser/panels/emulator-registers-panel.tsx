@@ -1,8 +1,11 @@
 import { nls } from '../../common/emulator-nls';
 import * as React from 'react';
-import { VesVbRegisters } from '../../common/vb-protocol';
-import { hex, VesEmulatorDebugSource, VesEmulatorPanel, EmulatorPanelType } from './emulator-panel';
+import { Registers } from '../../common/vb-protocol';
+import { hex, DebugSource, Panel, EmulatorPanelType } from './emulator-panel';
+import { emulatorPanelTitleIcon } from './emulator-panel-icons';
 import { VIP_REGISTER_BASE, VIP_REGISTER_BLOCK_BYTES, VipRegister } from './emulator-vip-memory';
+import { readVbcState } from './emulator-vcu-memory';
+import { registerHint, VCU_REGISTER_GROUPS } from './emulator-vcu-panel';
 import EmptyContainer from '../components/kit/EmptyContainer';
 import { Plug, Warning } from '@phosphor-icons/react';
 
@@ -72,15 +75,8 @@ const VIP_REGISTER_GROUPS: RegisterGroup[] = [
     },
 ];
 
-/**
- * What each program register is for.
- *
- * r0 and r31 are the hardware's own (zero and the link register); the rest of
- * these are the V810 calling convention rather than anything the silicon
- * enforces, so a hand-written routine is free to ignore them — the toolchain's
- * `crt0.s` does exactly that in places. The bit string registers are the
- * exception: the string instructions read those five implicitly.
- */
+// r0 (zero) and r31 (link) are the hardware's own, the rest is the V810 calling convention, which hand-written
+// code like the toolchain's `crt0.s` may ignore
 const PROGRAM_REGISTER_LABELS: Record<number, string> = {
     0: 'Zero Register',
     1: 'Assembler Reserved',
@@ -93,6 +89,7 @@ const PROGRAM_REGISTER_LABELS: Record<number, string> = {
     8: 'Argument 3',
     9: 'Argument 4',
     10: 'Return Value',
+    // read implicitly by the string instructions
     26: 'Bit String Source Offset',
     27: 'Bit String Destination Offset',
     28: 'Bit String Source Address',
@@ -115,30 +112,21 @@ const SYSTEM_REGISTER_LABELS: Record<string, string> = {
 };
 
 const PROGRAM_REGISTERS_PER_COLUMN = 16;
-/** Ten of them, so this splits the list evenly in two. */
 const SYSTEM_REGISTERS_PER_COLUMN = 5;
 
-/**
- * The VIP's control registers, and the V810's below them.
- *
- * The VIP block is read through the CPU's view of memory, so those are the
- * values the running program would see if it read them itself. The CPU's own
- * registers come from the core rather than from memory, since they live
- * nowhere in the address space.
- *
- * r0 is hardwired to zero and r31 is the link register; the rest are general
- * purpose. The system registers carry the exception and interrupt state, which
- * is usually what you want when a game has stopped somewhere unexpected.
- */
-export class VesEmulatorRegistersPanel extends VesEmulatorPanel {
+// the VIP block is read through the CPU's view of memory, the CPU registers come from the core
+export class RegistersPanel extends Panel {
 
-    protected registers?: VesVbRegisters;
+    protected registers?: Registers;
     protected vipRegisters?: DataView;
+    // only while a VB Color game has unlocked the VCU, see `readVbcState`
+    protected vcuRegisters?: DataView;
     protected error?: string;
 
-    constructor(source: VesEmulatorDebugSource, instanceId: string) {
+    constructor(source: DebugSource, instanceId: string) {
         super(EmulatorPanelType.REGISTERS, source, instanceId);
-        this.title.label = nls.localize('vueport/panels/registers', 'Registers');
+        this.title.label = nls.localize('vueport/debug/panels/registers/title', 'Registers');
+        this.title.icon = emulatorPanelTitleIcon(EmulatorPanelType.REGISTERS);
     }
 
     protected async refresh(): Promise<void> {
@@ -146,13 +134,20 @@ export class VesEmulatorRegistersPanel extends VesEmulatorPanel {
         if (!sim) {
             this.registers = undefined;
             this.vipRegisters = undefined;
+            this.vcuRegisters = undefined;
             this.update();
             return;
         }
 
         try {
-            this.registers = await sim.readRegisters();
-            this.vipRegisters = new DataView(await sim.readMemory(VIP_REGISTER_BASE, VIP_REGISTER_BLOCK_BYTES));
+            const [registers, vip, vbc] = await Promise.all([
+                sim.readRegisters(),
+                sim.readMemory(VIP_REGISTER_BASE, VIP_REGISTER_BLOCK_BYTES),
+                readVbcState(this.source, sim),
+            ]);
+            this.registers = registers;
+            this.vipRegisters = new DataView(vip);
+            this.vcuRegisters = vbc?.registers;
             this.error = undefined;
         } catch (error) {
             this.error = error instanceof Error ? error.message : String(error);
@@ -172,25 +167,28 @@ export class VesEmulatorRegistersPanel extends VesEmulatorPanel {
         if (!registers || !vipRegisters) {
             return <EmptyContainer
                 title={nls.localize(
-                  'vueport/panels/notRunning',
-                  'The emulator is not running.',
+                    'vueport/general/notRunning',
+                    'The emulator is not running.',
                 )}
                 icon={<Plug size={32} />}
-              />;
+            />;
         }
 
-        return <div className='vueport-registers-panel'>
+        return <div className='vp-registers-panel'>
             {this.renderVip(vipRegisters)}
             {this.renderCpu(registers)}
+            {this.vcuRegisters && this.renderVcu(this.vcuRegisters)}
         </div>;
     }
 
     protected renderVip(block: DataView): React.ReactNode {
-        return <fieldset className='vueport-vip-inspector-group vueport-vip'>
-            <legend>VIP</legend>
-            <div className='vueport-vip-groups'>
+        return <fieldset className='vp-inspector-group vp-vip vp-registers-section vp-scroll'>
+            <legend>
+                {nls.localize('vueport/debug/panels/registers/vip', 'VIP')}
+            </legend>
+            <div className='vp-groups'>
                 {VIP_REGISTER_GROUPS.map(({ group, registers }) => (
-                    <div className='vueport-vip-group' key={group}>
+                    <div className='vp-group' key={group}>
                         <h4>{group}</h4>
                         <table>
                             <tbody>
@@ -209,7 +207,34 @@ export class VesEmulatorRegistersPanel extends VesEmulatorPanel {
         </fieldset>;
     }
 
-    protected renderCpu(registers: VesVbRegisters): React.ReactNode {
+    protected renderVcu(block: DataView): React.ReactNode {
+        return <fieldset className='vp-inspector-group vp-vip vp-registers-section vp-scroll'>
+            <legend>
+                {nls.localize('vueport/debug/panels/registers/vcu', 'VCU')}
+            </legend>
+            <div className='vp-groups'>
+                {VCU_REGISTER_GROUPS.map(({ group, registers }) => (
+                    <div className='vp-group' key={group}>
+                        <h4>{group}</h4>
+                        <table>
+                            <tbody>
+                                {registers.map(({ name, offset, label }) => {
+                                    const value = block.getUint16(offset, true);
+                                    return <tr key={name}>
+                                        <th title={label}>{name}</th>
+                                        <td><code>{hex(value, 4)}</code></td>
+                                        <td className='hint'>{registerHint(name, label, value)}</td>
+                                    </tr>;
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                ))}
+            </div>
+        </fieldset>;
+    }
+
+    protected renderCpu(registers: Registers): React.ReactNode {
         const programColumns = inColumns(
             registers.program.map((value, index) => ({ index, value })),
             PROGRAM_REGISTERS_PER_COLUMN
@@ -219,16 +244,18 @@ export class VesEmulatorRegistersPanel extends VesEmulatorPanel {
             SYSTEM_REGISTERS_PER_COLUMN
         );
 
-        return <fieldset className='vueport-vip-inspector-group'>
-            <legend>CPU</legend>
-            <div className='vueport-registers'>
-                <div className='vueport-registers-pc'>
+        return <fieldset className='vp-inspector-group vp-registers-section vp-scroll'>
+            <legend>
+                {nls.localize('vueport/debug/panels/registers/cpu', 'CPU')}
+            </legend>
+            <div className='vp-registers'>
+                <div className='vp-registers-pc'>
                     <span>PC</span><code>{hex(registers.pc, 8)}</code>
-                    <span className='hint'>{nls.localize('vueport/panels/programCounter', 'Program Counter')}</span>
+                    <span className='hint'>{nls.localize('vueport/debug/panels/registers/programCounter', 'Program Counter')}</span>
                 </div>
-                <div className='vueport-vip-group'>
-                    <h4>{nls.localize('vueport/panels/programRegisters', 'Program')}</h4>
-                    <div className='vueport-vip-groups'>
+                <div className='vp-group'>
+                    <h4>{nls.localize('vueport/debug/panels/registers/program', 'Program')}</h4>
+                    <div className='vp-groups'>
                         {programColumns.map(column => (
                             <table key={column[0].index}>
                                 <tbody>
@@ -244,9 +271,9 @@ export class VesEmulatorRegistersPanel extends VesEmulatorPanel {
                         ))}
                     </div>
                 </div>
-                <div className='vueport-vip-group'>
-                    <h4>{nls.localize('vueport/panels/systemRegisters', 'System')}</h4>
-                    <div className='vueport-vip-groups'>
+                <div className='vp-group'>
+                    <h4>{nls.localize('vueport/debug/panels/registers/system', 'System')}</h4>
+                    <div className='vp-groups'>
                         {systemColumns.map(column => (
                             <table key={column[0][0]}>
                                 <tbody>
@@ -267,11 +294,6 @@ export class VesEmulatorRegistersPanel extends VesEmulatorPanel {
     }
 }
 
-/**
- * Deal a list into columns of at most `perColumn`, in reading order down each
- * column in turn — which is how both register lists are laid out, so the two
- * only differ in how long a column runs.
- */
 function inColumns<T>(items: T[], perColumn: number): T[][] {
     const columns: T[][] = [];
     for (let first = 0; first < items.length; first += perColumn) {

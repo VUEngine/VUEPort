@@ -1,0 +1,160 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "VUEPort",
+  "version": "1.0.0",
+  "identifier": "net.vueport.desktop",
+  "build": {
+    "frontendDist": "../../web/dist",
+    "beforeDevCommand": {
+      "script": "yarn workspace vueport-web build",
+      "wait": true
+    },
+    "beforeBuildCommand": "yarn workspace vueport-web build --no-sourcemaps"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://files.virtual-boy.com https://www.virtual-boy.com https://media.retroachievements.org; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https: ipc: http://ipc.localhost",
+      "dangerousDisableAssetCspModification": [
+        "style-src"
+      ]
+    },
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Game",
+    "shortDescription": "A Virtual Boy emulator",
+    "longDescription": "VUEPort is a modern, accurate and easy-to-use Virtual Boy emulator, built around the Shrooms-VB core.",
+    "copyright": "Copyright \u00a9 VUEngine",
+    "publisher": "VUEngine",
+    "homepage": "https://www.vueport.net",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "icons/documents/vb.icns": "vb.icns",
+      "icons/documents/vbc.icns": "vbc.icns",
+      "icons/documents/vbz.icns": "vbz.icns",
+      "icons/documents/vb.ico": "documents/vb.ico",
+      "icons/documents/vbc.ico": "documents/vbc.ico",
+      "icons/documents/vbz.ico": "documents/vbz.ico"
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": null,
+      "entitlements": null
+    },
+    "windows": {
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://time.certum.pl/",
+      "tsp": true,
+      "certificateThumbprint": null
+    },
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/mime/packages/vueport.xml": "vueport-mime.xml",
+          "/usr/share/icons/hicolor/16x16/mimetypes/": "icons/documents/linux/16x16/",
+          "/usr/share/icons/hicolor/22x22/mimetypes/": "icons/documents/linux/22x22/",
+          "/usr/share/icons/hicolor/24x24/mimetypes/": "icons/documents/linux/24x24/",
+          "/usr/share/icons/hicolor/32x32/mimetypes/": "icons/documents/linux/32x32/",
+          "/usr/share/icons/hicolor/48x48/mimetypes/": "icons/documents/linux/48x48/",
+          "/usr/share/icons/hicolor/64x64/mimetypes/": "icons/documents/linux/64x64/",
+          "/usr/share/icons/hicolor/128x128/mimetypes/": "icons/documents/linux/128x128/",
+          "/usr/share/icons/hicolor/256x256/mimetypes/": "icons/documents/linux/256x256/"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/share/mime/packages/vueport.xml": "vueport-mime.xml",
+          "/usr/share/icons/hicolor/16x16/mimetypes/": "icons/documents/linux/16x16/",
+          "/usr/share/icons/hicolor/22x22/mimetypes/": "icons/documents/linux/22x22/",
+          "/usr/share/icons/hicolor/24x24/mimetypes/": "icons/documents/linux/24x24/",
+          "/usr/share/icons/hicolor/32x32/mimetypes/": "icons/documents/linux/32x32/",
+          "/usr/share/icons/hicolor/48x48/mimetypes/": "icons/documents/linux/48x48/",
+          "/usr/share/icons/hicolor/64x64/mimetypes/": "icons/documents/linux/64x64/",
+          "/usr/share/icons/hicolor/128x128/mimetypes/": "icons/documents/linux/128x128/",
+          "/usr/share/icons/hicolor/256x256/mimetypes/": "icons/documents/linux/256x256/"
+        }
+      }
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "vb"
+        ],
+        "name": "Virtual Boy ROM",
+        "description": "A Virtual Boy cartridge image",
+        "mimeType": "application/x-virtual-boy-rom",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "net.vueport.rom",
+          "conformsTo": [
+            "public.data"
+          ]
+        }
+      },
+      {
+        "ext": [
+          "vbc"
+        ],
+        "name": "Virtual Boy Color ROM",
+        "description": "A Virtual Boy Color cartridge image",
+        "mimeType": "application/x-virtual-boy-color-rom",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "net.vueport.color-rom",
+          "conformsTo": [
+            "public.data"
+          ]
+        }
+      },
+      {
+        "ext": [
+          "vbz",
+          "vb.zip"
+        ],
+        "name": "Virtual Boy ROM Archive",
+        "description": "A zipped Virtual Boy cartridge image",
+        "mimeType": "application/x-virtual-boy-rom-archive",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "net.vueport.rom-archive",
+          "conformsTo": [
+            "public.zip-archive"
+          ]
+        }
+      },
+      {
+        "ext": [
+          "zip"
+        ],
+        "name": "Zipped Virtual Boy ROM",
+        "description": "An archive holding a Virtual Boy cartridge image",
+        "mimeType": "application/zip",
+        "contentTypes": [
+          "public.zip-archive"
+        ],
+        "role": "Viewer",
+        "rank": "Alternate"
+      }
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/VUEngine/VUEPort/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYxRURBMTg0QzhEMzk0RTUKUldUbGxOUEloS0h0OFNZdE5JWUZtd3hyUlFvdWRXbzdDSzMxSUw3bXFsOHVodFFjSG5Kb3N0c08K"
+    }
+  }
+}

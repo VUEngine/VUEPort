@@ -1,75 +1,49 @@
 /**
- * Cheats, and the `.cht` files they live in.
+ * Cheats and their `.cht` files. A cheat is a set of RAM writes repeated every frame (gamehacking.org's "RAM Write"
+ * codes), written `ADDRESS:VALUE` in hex, e.g. `50091A4:0001` writes 1 to 0x050091A4. Value digits give the width: 2
+ * byte, 4 halfword, 8 word.
  *
- * A cheat is a set of RAM writes the emulator repeats every frame, which is
- * what makes a value stay put however hard the game tries to change it — the
- * "RAM Write" codes gamehacking.org publishes for the Virtual Boy. A code is
- * written `ADDRESS:VALUE`, both hexadecimal, e.g. `50091A4:0001` for "write 1
- * to 0x050091A4 every frame". The number of digits in the value is how wide
- * the write is: two for a byte, four for a halfword, eight for a word.
- *
- * The file format is RetroArch's: a `cheats` count followed by `cheatN_desc`,
- * `cheatN_code` and `cheatN_enable` for each, with several codes in one cheat
- * separated by `+`. Reading is deliberately lenient — unknown keys, missing
- * quotes, a wrong or absent count, blank lines and `;` comments are all
- * tolerated — because these files are written by hand and by other tools as
- * often as by this one. Writing produces the canonical form.
- *
- * Everything here is pure, so it can be reasoned about, and tested, without a
- * running emulator or a file system.
+ * The file format is RetroArch's (`cheats` count, then `cheatN_desc`, `cheatN_code`, `cheatN_enable`, codes joined by
+ * `+`). Reading is lenient (unknown keys, missing quotes, wrong count, blank lines, `;` comments) as files are
+ * hand-written; writing is canonical. `cheatN_notes` is our own optional addition, which standard readers ignore as an
+ * unknown key; it is omitted when empty.
  */
 
-/** One `ADDRESS:VALUE` write. */
-export interface VesCheatCode {
-    /** Where to write, in the CPU's address space. */
+export interface CheatCode {
+    // CPU address
     address: number;
     value: number;
-    /** The value's width in hexadecimal digits: 2, 4 or 8. */
+    // value width in hex digits: 2, 4 or 8
     digits: number;
 }
 
-export interface VesCheat {
+export interface Cheat {
     description: string;
     enabled: boolean;
-    codes: VesCheatCode[];
-    /**
-     * Set for a cheat that came from the built-in database rather than from
-     * the file beside the ROM.
-     *
-     * Such a cheat can be switched on and off but not edited or removed: it is
-     * not the player's to change, and the next release may correct it. Only
-     * whether it is on is remembered, and separately — see the cheat store.
-     */
+    codes: CheatCode[];
+    notes?: string;
+    // from the built-in database: can be toggled but not edited or removed, as the next release may correct
+    // it. Only its on/off state is kept in browser state (see the cheat store)
     readonly builtIn?: boolean;
-    /**
-     * A built-in's identity, stable across releases, which is what its
-     * remembered on/off state is filed under. Absent on a player's own cheats,
-     * which are remembered by being written down in full.
-     */
+    // built-in's identity, stable across releases, keying its on/off state. Player cheats use a
+    // definition-derived identity instead
     readonly id?: string;
 }
 
-/** The widths a code's value may be written at, and what they mean in bytes. */
 export const CHEAT_DIGITS = [2, 4, 8];
 export const CHEAT_DEFAULT_DIGITS = 4;
 
-export function vesCheatCodeBytes(code: VesCheatCode): number {
+export function vesCheatCodeBytes(code: CheatCode): number {
     return Math.max(1, Math.min(4, code.digits / 2));
 }
 
-/** The largest value a code of this width can hold. */
 export function vesCheatMaxValue(digits: number): number {
     return digits >= 8 ? 0xffffffff : (1 << (digits * 4)) - 1;
 }
 
-/**
- * Read one `ADDRESS:VALUE` code, or undefined if it is not one.
- *
- * The address is masked to 32 bits rather than rejected when it is longer,
- * since published codes routinely leave off leading zeroes and occasionally
- * carry a stray one.
- */
-export function parseVesCheatCode(text: string): VesCheatCode | undefined {
+// the address is masked to 32 bits rather than rejected, as published codes often drop leading zeroes
+// and occasionally carry a stray one
+export function parseVesCheatCode(text: string): CheatCode | undefined {
     const match = /^\s*([0-9a-f]{1,8})\s*:\s*([0-9a-f]{1,8})\s*$/i.exec(text);
     if (!match) {
         return undefined;
@@ -82,30 +56,24 @@ export function parseVesCheatCode(text: string): VesCheatCode | undefined {
     };
 }
 
-export function formatVesCheatCode(code: VesCheatCode): string {
+export function formatVesCheatCode(code: CheatCode): string {
     const address = (code.address >>> 0).toString(16).toUpperCase();
     const value = (code.value >>> 0).toString(16).toUpperCase().padStart(code.digits, '0');
     return `${address}:${value}`;
 }
 
-/** All of a cheat's codes, in the `+`-separated form the file holds. */
-export function formatVesCheatCodes(cheat: VesCheat): string {
+export function formatVesCheatCodes(cheat: Cheat): string {
     return cheat.codes.map(formatVesCheatCode).join('+');
 }
 
-/**
- * Parse all of a cheat's codes from the `+`-separated form the files use, and
- * that published cheat lists are written in. Anything unparseable is dropped
- * rather than failing the rest.
- */
-export function parseVesCheatCodes(text: string): VesCheatCode[] {
+// unparseable codes are dropped rather than failing the rest
+export function parseVesCheatCodes(text: string): CheatCode[] {
     return text.split('+')
         .map(parseVesCheatCode)
-        .filter((parsed): parsed is VesCheatCode => parsed !== undefined);
+        .filter((parsed): parsed is CheatCode => parsed !== undefined);
 }
 
-/** Parse the `.cht` file next to a ROM. */
-export function parseVesCheatFile(text: string): VesCheat[] {
+export function parseVesCheatFile(text: string): Cheat[] {
     const values = new Map<string, string>();
     for (const line of text.split(/\r?\n/)) {
         const trimmed = line.trim();
@@ -121,27 +89,28 @@ export function parseVesCheatFile(text: string): VesCheat[] {
         values.set(key, value);
     }
 
-    // The declared count is a hint rather than the authority: a file whose
-    // count is stale or missing still has its entries read, and one that
-    // overstates it does not produce empty cheats at the end.
+    // the declared count is only a hint: stale or missing counts still read every entry, overstated ones
+    // add no empty cheats
     const declared = parseInt(values.get('cheats') ?? '', 10);
-    const cheats: VesCheat[] = [];
+    const cheats: Cheat[] = [];
     for (let index = 0; index < Math.max(Number.isNaN(declared) ? 0 : declared, values.size); index++) {
         const description = values.get(`cheat${index}_desc`);
         const code = values.get(`cheat${index}_code`);
         if (description === undefined && code === undefined) {
             continue;
         }
+        const notes = values.get(`cheat${index}_notes`);
         cheats.push({
             description: description ?? '',
             enabled: (values.get(`cheat${index}_enable`) ?? 'false').toLowerCase() === 'true',
             codes: parseVesCheatCodes(code ?? ''),
+            notes: notes ? notes.replace(/\\n/g, '\n') : undefined,
         });
     }
     return cheats;
 }
 
-export function serializeVesCheatFile(cheats: VesCheat[]): string {
+export function serializeVesCheatFile(cheats: Cheat[]): string {
     const lines = [`cheats = ${cheats.length}`];
     cheats.forEach((cheat, index) => {
         lines.push(
@@ -150,11 +119,16 @@ export function serializeVesCheatFile(cheats: VesCheat[]): string {
             `cheat${index}_code = "${formatVesCheatCodes(cheat)}"`,
             `cheat${index}_enable = ${cheat.enabled}`
         );
+        // omitted without notes, so such files are unchanged; newlines are escaped so the note stays on one
+        // physical line, as an embedded one would start a new key
+        if (cheat.notes) {
+            lines.push(
+                `cheat${index}_notes = "${cheat.notes.replace(/"/g, '').replace(/\r?\n/g, '\\n')}"`);
+        }
     });
     return `${lines.join('\n')}\n`;
 }
 
-/** The writes the enabled cheats add up to, in the order they are listed. */
-export function enabledVesCheatCodes(cheats: ReadonlyArray<VesCheat>): VesCheatCode[] {
+export function enabledVesCheatCodes(cheats: ReadonlyArray<Cheat>): CheatCode[] {
     return cheats.filter(cheat => cheat.enabled).flatMap(cheat => cheat.codes);
 }

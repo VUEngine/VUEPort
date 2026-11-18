@@ -1,19 +1,11 @@
-// End-to-end test of terminal capture, using the shipped table patch and
-// callback installer from lib/emulator/worker/vb-wasm.js rather than a
-// reimplementation.
-//
-// A hand-assembled V810 program writes a string to the engine's terminal port
-// exactly the way Terminal::print does — byte by byte, newline at the end — and
-// this asserts the captured text comes back intact.
-//
-// See scripts/write-callback-probe.mjs for how the callback ABI was established.
-//
-// Usage: node scripts/terminal-probe.mjs
+// end-to-end terminal capture with the shipped table patch and callback installer: a hand-assembled program writes a
+// string to the terminal port the way Terminal::print does, and the text must come back intact (ABI from
+// tests/write-callback-probe.mjs). Usage: node tests/terminal-probe.mjs
 import fs from 'fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { patchVesVbTableLimit, installVesVbCallback, VB_TABLE_SLOTS } =
+const { patchTableLimit, installVbCallback, VB_TABLE_SLOTS, VB_WRITE_CALLBACK_ARITY } =
     require('../lib/worker/vb-wasm.js');
 
 const TERMINAL_PORT = 0x02000030;
@@ -30,24 +22,8 @@ function check(label, actual, expected) {
     return true;
 }
 
-/**
- * A 1 MB cartridge that writes MESSAGE to the terminal port and then spins.
- *
- * The reset vector only has 16 bytes before the end of the image, which is not
- * enough for the whole sequence, so it computes the address of the real routine
- * and jumps there. Cartridge ROM decodes from bits 26-24 of the address and the
- * offset is masked to the image size, so 0xFFF01000 is ROM offset 0x1000.
- *
- *   at 0xFFFFFFF0:  movhi 0xFFF0, r0, r10
- *                   movea 0x1000, r10, r10
- *                   jmp   [r10]
- *
- *   at 0x1000:      movhi 0x0200, r0, r10       r10 = 0x02000000
- *                   for each byte:
- *                     movea <byte>, r0, r11
- *                     st.b  r11, 0x30[r10]
- *                   br 0
- */
+// writes MESSAGE to the terminal port byte by byte and spins. Reset jumps to 0xFFF01000, which is ROM offset 0x1000, as
+// cartridge ROM decodes from address bits 26-24 and masks the offset to the image size
 function buildRom(text) {
     const size = 0x100000;
     const rom = new Uint8Array(size);
@@ -80,10 +56,10 @@ function buildRom(text) {
 }
 
 const corePath = new URL(
-    '../wasm/core.wasm',
+    '../wasm/shrooms/core.wasm',
     import.meta.url
 );
-const bytes = patchVesVbTableLimit(new Uint8Array(fs.readFileSync(corePath)));
+const bytes = patchTableLimit(new Uint8Array(fs.readFileSync(corePath)));
 
 const { instance } = await WebAssembly.instantiate(bytes, {
     env: { emscripten_notify_memory_growth: () => { } }
@@ -93,6 +69,15 @@ E._initialize();
 
 console.log('Table');
 check('widened to the declared slot count', E.__indirect_function_table.length, VB_TABLE_SLOTS);
+
+// which slots the core came with, noted rather than assumed, as that changes when the core is rebuilt; a callback
+// just must not land on top of one of them
+const stockSlots = [];
+for (let index = 0; index < E.__indirect_function_table.length; index++) {
+    if (E.__indirect_function_table.get(index) !== null) {
+        stockSlots.push(index);
+    }
+}
 
 const rom = buildRom(MESSAGE);
 const romPtr = E.Realloc(0, rom.length);
@@ -106,17 +91,18 @@ const ramPtr = E.Realloc(0, 8192);
 new Uint8Array(E.memory.buffer, ramPtr, 8192).fill(0);
 E.vbSetCartRAM(sim, ramPtr, 8192);
 
-// Exactly what VesVbWorker#setTerminalCapture does.
+// exactly what Worker#setTerminalCapture does
 const captured = [];
-const slot = installVesVbCallback(E, (simPointer, address, type, valuePointer) => {
+const slot = installVbCallback(E, (simPointer, address, type, valuePointer) => {
     if ((address >>> 0) === TERMINAL_PORT) {
         captured.push(new Uint8Array(E.memory.buffer, valuePointer, 1)[0]);
     }
     return 0;
-});
+}, VB_WRITE_CALLBACK_ARITY);
 
 console.log('\nCapture');
-check('callback went into a spare slot', slot >= 5, true);
+check('callback went into a spare slot',
+    slot > 0 && !stockSlots.includes(slot), true);
 
 E.vbSetWriteCallback(sim, slot);
 check('the core reports the callback', E.vbGetWriteCallback(sim), slot);
@@ -138,7 +124,6 @@ const text = String.fromCharCode(...captured);
 check('captured text', text, MESSAGE);
 check('one callback per byte written', captured.length, MESSAGE.length);
 
-// The panel splits on newlines, so check that produces what it should.
 const parts = text.split('\n');
 const partial = parts.pop();
 check('one complete line', parts.length, 1);

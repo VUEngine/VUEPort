@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  What macOS is told about Virtual Boy files.
+
+  Tauri merges this file into the Info.plist it generates — but for a key it
+  finds in both, this one wins outright rather than being folded in. So the
+  document types cannot be extended here; they have to be stated here in full,
+  and what `bundle.fileAssociations` says in tauri.conf.json is what reaches
+  Windows and Linux only. The two are kept in step by `associations-probe.mjs`,
+  which fails if either grows a type the other does not have.
+
+  What this file adds over the generated one is the icon: there is no icon
+  field on a Tauri file association, and a document icon is the whole reason
+  for the detour. `CFBundleTypeIconFile` names the icon Finder draws for a file
+  of that type, and `UTTypeIconFile` does the same for anything that asks about
+  the type rather than about a particular file. Both name a file in
+  Contents/Resources, which `bundle.resources` puts there.
+
+  `.vb.zip` is declared beside `.vbz` and never matches: Launch Services
+  resolves a file by the last segment of its name alone. See the note in
+  `associations-probe.mjs`, which records how that was measured.
+-->
+<plist version="1.0">
+<dict>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key><string>Virtual Boy ROM</string>
+      <key>CFBundleTypeExtensions</key><array><string>vb</string></array>
+      <key>LSItemContentTypes</key><array><string>net.vueport.rom</string></array>
+      <key>CFBundleTypeIconFile</key><string>vb.icns</string>
+      <key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Owner</string>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>Virtual Boy Color ROM</string>
+      <key>CFBundleTypeExtensions</key><array><string>vbc</string></array>
+      <key>LSItemContentTypes</key><array><string>net.vueport.color-rom</string></array>
+      <key>CFBundleTypeIconFile</key><string>vbc.icns</string>
+      <key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Owner</string>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>Virtual Boy ROM Archive</string>
+      <key>CFBundleTypeExtensions</key>
+      <array><string>vbz</string><string>vb.zip</string></array>
+      <key>LSItemContentTypes</key><array><string>net.vueport.rom-archive</string></array>
+      <key>CFBundleTypeIconFile</key><string>vbz.icns</string>
+      <key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Owner</string>
+    </dict>
+    <!--
+      An ordinary archive, which VUEPort opens but does not own — so no icon:
+      the picture Finder shows for a .zip belongs to whatever does own it, and
+      putting a cartridge on every archive on somebody's machine is exactly
+      what the Alternate rank is here to avoid.
+    -->
+    <dict>
+      <key>CFBundleTypeName</key><string>Zipped Virtual Boy ROM</string>
+      <key>CFBundleTypeExtensions</key><array><string>zip</string></array>
+      <key>LSItemContentTypes</key><array><string>public.zip-archive</string></array>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+    </dict>
+  </array>
+
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key><string>net.vueport.rom</string>
+      <key>UTTypeDescription</key><string>Virtual Boy ROM</string>
+      <key>UTTypeConformsTo</key><array><string>public.data</string></array>
+      <key>UTTypeIconFile</key><string>vb.icns</string>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key><array><string>vb</string></array>
+        <key>public.mime-type</key><string>application/x-virtual-boy-rom</string>
+      </dict>
+    </dict>
+    <dict>
+      <key>UTTypeIdentifier</key><string>net.vueport.color-rom</string>
+      <key>UTTypeDescription</key><string>Virtual Boy Color ROM</string>
+      <key>UTTypeConformsTo</key><array><string>public.data</string></array>
+      <key>UTTypeIconFile</key><string>vbc.icns</string>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key><array><string>vbc</string></array>
+        <key>public.mime-type</key><string>application/x-virtual-boy-color-rom</string>
+      </dict>
+    </dict>
+    <dict>
+      <key>UTTypeIdentifier</key><string>net.vueport.rom-archive</string>
+      <key>UTTypeDescription</key><string>Virtual Boy ROM Archive</string>
+      <key>UTTypeConformsTo</key><array><string>public.zip-archive</string></array>
+      <key>UTTypeIconFile</key><string>vbz.icns</string>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array><string>vbz</string><string>vb.zip</string></array>
+        <key>public.mime-type</key><string>application/x-virtual-boy-rom-archive</string>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>

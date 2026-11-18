@@ -1,6 +1,7 @@
 import { nls } from '../../common/emulator-nls';
 import * as React from 'react';
-import { hex, VesEmulatorDebugSource, VesEmulatorPanel, EmulatorPanelType } from './emulator-panel';
+import { hex, DebugSource, Panel, EmulatorPanelType } from './emulator-panel';
+import { emulatorPanelTitleIcon } from './emulator-panel-icons';
 import {
     VIP_BGMAP_PALETTES,
     VIP_OBJECT_PALETTES,
@@ -13,21 +14,16 @@ import {
 import EmptyContainer from '../components/kit/EmptyContainer';
 import { Plug, Warning } from '@phosphor-icons/react';
 
-/**
- * The VIP's brightness and palette registers, shown as swatches.
- *
- * A palette register maps each of a pixel's four possible values to one of
- * the three brightness levels (or black); this shows exactly that mapping
- * rather than the raw register value, which alone is not very readable.
- */
-export class VesEmulatorVipPalettesPanel extends VesEmulatorPanel {
+// shows each palette register as the mapping of a pixel's four values to the brightness levels (or black)
+export class PalettesPanel extends Panel {
 
     protected registers?: DataView;
     protected error?: string;
 
-    constructor(source: VesEmulatorDebugSource, instanceId: string) {
+    constructor(source: DebugSource, instanceId: string) {
         super(EmulatorPanelType.VIP_PALETTES, source, instanceId);
-        this.title.label = nls.localize('vueport/panels/palettes/title', 'Palettes');
+        this.title.label = nls.localize('vueport/debug/panels/palettes/title', 'Palettes');
+        this.title.icon = emulatorPanelTitleIcon(EmulatorPanelType.VIP_PALETTES);
     }
 
     protected async refresh(): Promise<void> {
@@ -58,11 +54,11 @@ export class VesEmulatorVipPalettesPanel extends VesEmulatorPanel {
         if (!registers) {
             return <EmptyContainer
                 title={nls.localize(
-                  'vueport/panels/notRunning',
-                  'The emulator is not running.',
+                    'vueport/general/notRunning',
+                    'The emulator is not running.',
                 )}
                 icon={<Plug size={32} />}
-              />;
+            />;
         }
 
         const levels = vipBrightnessLevelsFromRegisters(registers);
@@ -73,12 +69,12 @@ export class VesEmulatorVipPalettesPanel extends VesEmulatorPanel {
                 <th>{name}</th>
                 <td><code>{hex(value, 2)}</code></td>
                 <td>
-                    <div className='vueport-vip-swatches'>
+                    <div className='vp-vip-swatches'>
                         {intensities.map((intensity, index) => (
                             <span
                                 key={index}
-                                className='vueport-vip-swatch'
-                                style={{ background: `rgb(${intensity * 2}, 0, 0)` }}
+                                className='vp-vip-swatch'
+                                style={{ background: `rgb(${intensity}, 0, 0)` }}
                                 title={`${index}: ${intensity}`}
                             />
                         ))}
@@ -87,22 +83,22 @@ export class VesEmulatorVipPalettesPanel extends VesEmulatorPanel {
             </tr>;
         };
 
-        return <div className='vueport-vip'>
-            <div className='vueport-vip-groups'>
-                <div className='vueport-vip-group'>
-                    <h4>{nls.localize('vueport/panels/palettes/bgMapPalettes', 'BGMap palettes')}</h4>
+        return <div className='vp-vip'>
+            <div className='vp-groups'>
+                <div className='vp-group'>
+                    <h4>{nls.localize('vueport/debug/panels/palettes/bgMapPalettes', 'BGMap palettes')}</h4>
                     <table><tbody>
                         {VIP_BGMAP_PALETTES.map((register, index) => renderPalette(`GPLT${index}`, register))}
                     </tbody></table>
                 </div>
-                <div className='vueport-vip-group'>
-                    <h4>{nls.localize('vueport/panels/palettes/objectPalettes', 'Object palettes')}</h4>
+                <div className='vp-group'>
+                    <h4>{nls.localize('vueport/debug/panels/palettes/objectPalettes', 'Object palettes')}</h4>
                     <table><tbody>
                         {VIP_OBJECT_PALETTES.map((register, index) => renderPalette(`JPLT${index}`, register))}
                     </tbody></table>
                 </div>
-                <div className='vueport-vip-group'>
-                    <h4>{nls.localize('vueport/panels/palettes/brightness', 'Brightness')}</h4>
+                <div className='vp-group'>
+                    <h4>{nls.localize('vueport/debug/panels/palettes/brightness', 'Brightness')}</h4>
                     <table><tbody>
                         {[
                             ['BRTA', VipRegister.BRTA],
@@ -116,18 +112,18 @@ export class VesEmulatorVipPalettesPanel extends VesEmulatorPanel {
                         ))}
                         <tr>
                             <th title={nls.localize(
-                                'vueport/panels/palettes/level3Hint',
+                                'vueport/debug/panels/palettes/level3Hint',
                                 'The brightest level is the sum of all three registers'
                             )}>
-                                {nls.localize('vueport/panels/palettes/levels', 'Levels')}
+                                {nls.localize('vueport/debug/panels/palettes/levels', 'Levels')}
                             </th>
                             <td colSpan={2}>
-                                <div className='vueport-vip-swatches'>
+                                <div className='vp-vip-swatches'>
                                     {levels.map((intensity, index) => (
                                         <span
                                             key={index}
-                                            className='vueport-vip-swatch'
-                                            style={{ background: `rgb(${intensity * 2}, 0, 0)` }}
+                                            className='vp-vip-swatch'
+                                            style={{ background: `rgb(${intensity}, 0, 0)` }}
                                             title={`${index}: ${intensity}`}
                                         />
                                     ))}

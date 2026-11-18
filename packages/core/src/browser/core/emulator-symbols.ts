@@ -1,88 +1,64 @@
-/**
- * What the emulator's inspectors want out of a build's symbol table.
- *
- * Reading the table means pulling a whole `.elf` — tens of megabytes on a
- * real project — so it happens once per ROM and everything that needs a
- * symbol takes it from here rather than reading again. The index keeps only
- * the handful of things panels actually look up, so the symbol list itself
- * can be dropped as soon as this has been built from it.
- */
+// the `.elf` (tens of MB on a real project) is read once per ROM; the index keeps only what the inspectors look up,
+// so the image can be dropped after
 
 import { readClassHierarchy } from './emulator-classes';
 import { readDwarfStructs, VesStruct } from './emulator-dwarf';
-import { VesElfImage, VesElfSymbol } from './emulator-elf';
+import { ElfImage, ElfSection, ElfSymbol } from './emulator-elf';
 import { romOffsetOf } from './emulator-line-table';
+import { isWram } from '../../common/vb-constants';
 
-/** A symbol's address and the size the linker gave it. */
-export interface VesSymbolExtent {
+export interface SymbolExtent {
     address: number;
     size: number;
 }
 
-export interface VesEmulatorSymbolIndex {
-    /**
-     * MemoryPool's singleton, which is the whole of the engine's heap: the
-     * pools themselves and the bookkeeping that describes them, in one struct.
-     */
-    memoryPool?: VesSymbolExtent;
-    /**
-     * Every class' virtual table, by address, named as the project names the
-     * class. This is what turns an allocated block back into the kind of
-     * object sitting in it — see `readMemoryPoolUsage`.
-     */
-    vTables: Map<number, string>;
-    /** Address of `Rumble.c`'s `_rumbleEffectSpec`. */
-    rumbleSpecPointer?: number;
-    /** Every RumbleEffectSpec in the ROM, by the address the linker gave it. */
-    rumbleSpecNames: Map<number, string>;
-    /**
-     * Every class mapped to the one it inherits from, which is what lets an
-     * object of some project's own class be recognised as, say, an Actor.
-     * `Object` is its own base and ends the chain.
-     */
-    classes: Map<string, string>;
-    /**
-     * Field layouts, by the name the engine's class macro gives the struct —
-     * `Actor_str` for class `Actor`. Empty for a build with no debug sections,
-     * which costs field-level inspection but nothing else.
-     */
-    structs: Map<string, VesStruct>;
-    /**
-     * Every data symbol, ordered by address, so a pointer read out of the
-     * running machine can be named — see `findSymbolAt`. This is what turns an
-     * actor's `actorSpec` back into the spec the project wrote.
-     */
-    dataSymbols: VesElfSymbol[];
-    /**
-     * Every function, ordered by address, for naming code rather than data —
-     * see `findFunctionAt`. This is what turns a profiled address back into
-     * the method the developer wrote.
-     */
-    codeSymbols: VesElfSymbol[];
+// finer than the linker's two kinds, as "how much is code" and "how much is artwork" are different questions
+export enum MemoryAreaKind {
+    CODE = 'code',
+    READ_ONLY = 'readOnly',
+    DATA = 'data',
+    ZEROED = 'zeroed', // costs RAM but no ROM
+    POOL = 'pool', // VUEngine's heap, carved out of whichever section holds it
 }
 
-/**
- * The function an address is inside.
- *
- * Unlike `findSymbolAt` this does not require the address to fall within the
- * symbol's recorded size: a profiler's addresses land in the middle of a
- * function, and a linker does not always record a size. So the search is for
- * the last function beginning at or before the address, bounded by the size
- * when there is one.
- *
- * Addresses are compared as offsets into the ROM, because a program counter
- * may arrive through the cartridge window or through the mirror at the top of
- * memory while the symbol table only ever names the former.
- */
+export interface MemoryArea {
+    name: string; // section name, or `MemoryPool` for the engine's heap
+    kind: MemoryAreaKind;
+    bytes: number;
+}
+
+// in linker order
+export interface MemoryFootprint {
+    rom: MemoryArea[]; // `.data`'s initializers included
+    wram: MemoryArea[];
+}
+
+export interface SymbolIndex {
+    footprint: MemoryFootprint;
+    // MemoryPool's singleton, the whole engine heap: the pools and their bookkeeping in one struct
+    memoryPool?: SymbolExtent;
+    vTables: Map<number, string>; // by address, turns an allocated block back into its class
+    rumbleSpecPointer?: number; // address of Rumble.c's `_rumbleEffectSpec`
+    rumbleSpecNames: Map<number, string>;
+    classes: Map<string, string>; // class to base, `Object` is its own base
+    // by the struct name the class macro gives (`Actor_str` for `Actor`), empty for a build without debug sections
+    structs: Map<string, VesStruct>;
+    dataSymbols: ElfSymbol[]; // ordered by address
+    codeSymbols: ElfSymbol[]; // ordered by address
+}
+
+// the last function starting at or before the address, bounded by its size only when the linker recorded one. Unlike
+// findSymbolAt, as profiler addresses land mid-function. Compared as ROM offsets, as a PC may come through the
+// cartridge window or the mirror at the top of memory
 export function findFunctionAt(
-    index: VesEmulatorSymbolIndex, address: number, romSize: number
-): VesElfSymbol | undefined {
+    index: SymbolIndex, address: number, romSize: number
+): ElfSymbol | undefined {
     const symbols = index.codeSymbols;
     const target = romOffsetOf(address, romSize);
 
     let low = 0;
     let high = symbols.length - 1;
-    let found: VesElfSymbol | undefined;
+    let found: ElfSymbol | undefined;
     while (low <= high) {
         const middle = (low + high) >> 1;
         if (romOffsetOf(symbols[middle].address, romSize) <= target) {
@@ -99,16 +75,9 @@ export function findFunctionAt(
     return found.size === 0 || target < start + found.size ? found : undefined;
 }
 
-/**
- * What the developer calls a function, from what the linker calls it.
- *
- * The preprocessor turns `Class::method` into `Class_method` on its way to C,
- * and the linker adds the ABI's underscore on top. Undoing both makes a flame
- * graph read in the language the code was written in. The class list is what
- * makes this safe: only a prefix that really is a class becomes a `::`, so an
- * ordinary function with an underscore in its name is left alone.
- */
-export function functionDisplayName(index: VesEmulatorSymbolIndex, symbol: string): string {
+// the preprocessor turns `Class::method` into `Class_method` and the linker adds the ABI's underscore; undo both.
+// Only a prefix that really is a class becomes `::`, so other functions with underscores are left alone
+export function functionDisplayName(index: SymbolIndex, symbol: string): string {
     const name = symbol.replace(/^_/, '');
     const split = name.indexOf('_');
     if (split <= 0) {
@@ -118,26 +87,14 @@ export function functionDisplayName(index: VesEmulatorSymbolIndex, symbol: strin
     return index.classes.has(owner) ? `${owner}::${name.slice(split + 1)}` : name;
 }
 
-/**
- * The symbol a pointer falls in, and how far into it.
- *
- * A spec is usually pointed at by its start, but not always: one embedded in a
- * larger structure — an array of them, or a subclass' spec whose first member
- * is the base one — is pointed at from within the symbol that contains it. So
- * the search is for the symbol whose extent covers the address rather than for
- * one that begins at it, and the offset comes back for the caller to show.
- *
- * A symbol the linker gave no size to can only be matched exactly, since there
- * is nothing to say where it ends.
- */
+// with the offset into the symbol, as a spec embedded in a larger structure (an array, a subclass' spec) is pointed
+// at from within. A symbol without a size can only be matched exactly
 export function findSymbolAt(
-    index: VesEmulatorSymbolIndex, address: number
-): { symbol: VesElfSymbol, offset: number } | undefined {
+    index: SymbolIndex, address: number
+): { symbol: ElfSymbol, offset: number } | undefined {
     const symbols = index.dataSymbols;
     const target = address >>> 0;
 
-    // The last symbol starting at or before the address; anything covering it
-    // has to start no later than it does.
     let low = 0;
     let high = symbols.length - 1;
     let found = -1;
@@ -151,16 +108,14 @@ export function findSymbolAt(
         }
     }
 
-    // Several symbols can share an address, and a smaller one can be nested in
-    // a larger, so walk back over the run that starts here for the best fit.
+    // several symbols can share an address and a smaller one can be nested in a larger, so walk back for the best fit
     for (let at = found; at >= 0; at--) {
         const symbol = symbols[at];
         const end = symbol.address + Math.max(symbol.size, 1);
         if (target >= symbol.address && target < end) {
             return { symbol, offset: target - symbol.address };
         }
-        // Once the candidates start before the widest one seen could reach,
-        // there is nothing further back that could cover the address either.
+        // once candidates start before the widest one seen could reach, nothing further back can cover the address
         if (symbol.address + symbol.size < target && symbol.address !== symbols[found]?.address) {
             break;
         }
@@ -168,28 +123,22 @@ export function findSymbolAt(
     return undefined;
 }
 
-/** The struct a class' instances are laid out by. */
 export function structNameOf(className: string): string {
     return `${className}_str`;
 }
 
-/**
- * `MemoryPool`'s singleton instance.
- *
- * `__SINGLETON` declares it as a file-scope static wrapping the instance in a
- * struct that prefixes it with an object footprint, so the name carries the
- * macro's own leading underscore as well as the ABI's, and the symbol is
- * local — which the ELF reader does not mind, but `nm` on the `.map` would,
- * since a map lists globals only.
- */
+// `__SINGLETON` declares a file-scope static wrapping the instance in a struct with an object footprint, so the
+// name has the macro's underscore plus the ABI's, and the symbol is local (not in the `.map`, which lists globals)
 const MEMORY_POOL_SYMBOL = '__singletonWrapperMemoryPool';
+
+export const MEMORY_POOL_AREA = 'MemoryPool';
 const VTABLE_SUFFIX = '_vTable';
 const RUMBLE_SPEC_POINTER_SYMBOL = '__rumbleEffectSpec';
 const RUMBLE_SPEC_SUFFIX = 'RumbleEffectSpec';
 
-/** Reduce a build's image to what the inspectors can use. */
-export function indexElfSymbols(image: VesElfImage): VesEmulatorSymbolIndex {
-    const index: VesEmulatorSymbolIndex = {
+export function indexElfSymbols(image: ElfImage): SymbolIndex {
+    const index: SymbolIndex = {
+        footprint: { rom: [], wram: [] },
         vTables: new Map(),
         rumbleSpecNames: new Map(),
         classes: readClassHierarchy(image),
@@ -203,8 +152,6 @@ export function indexElfSymbols(image: VesElfImage): VesEmulatorSymbolIndex {
     };
 
     for (const symbol of image.symbols) {
-        // Only data symbols name anything here; the code ones are what the
-        // class hierarchy was read from, and are of no further use.
         if (symbol.isFunction) {
             continue;
         }
@@ -219,13 +166,61 @@ export function indexElfSymbols(image: VesElfImage): VesEmulatorSymbolIndex {
         }
     }
 
+    // needs the pool found by the loop
+    index.footprint = readMemoryFootprint(image, index.memoryPool);
+
     return index;
 }
 
-/**
- * What the project calls the thing a generated symbol belongs to: the ABI's
- * leading underscore and the generated suffix are on every one of them.
- */
+function sectionKind(section: ElfSection): MemoryAreaKind {
+    if (section.executable) {
+        return MemoryAreaKind.CODE;
+    }
+    if (!section.hasContents) {
+        return MemoryAreaKind.ZEROED;
+    }
+    return section.writable ? MemoryAreaKind.DATA : MemoryAreaKind.READ_ONLY;
+}
+
+// a section with contents costs ROM wherever it runs, as the cartridge is the only source of its bytes (so `.sdata`
+// is in both lists), and a section running in WRAM costs WRAM whether its bytes are in the file or zeroed.
+// `MemoryPool` is split out of its section, as in a VUEngine game it is most of both figures
+function readMemoryFootprint(image: ElfImage, pool: SymbolExtent | undefined): MemoryFootprint {
+    const footprint: MemoryFootprint = { rom: [], wram: [] };
+    for (const section of image.sections) {
+        if (!section.allocated || section.size === 0) {
+            continue;
+        }
+        const kind = sectionKind(section);
+        for (const area of splitAroundPool(section, kind, pool)) {
+            if (section.hasContents) {
+                footprint.rom.push(area);
+            }
+            if (isWram(section.address)) {
+                footprint.wram.push(area);
+            }
+        }
+    }
+    return footprint;
+}
+
+// the remainders on either side of the heap are kept even though they are tiny in a VUEngine build
+function splitAroundPool(
+    section: ElfSection, kind: MemoryAreaKind, pool: SymbolExtent | undefined
+): MemoryArea[] {
+    const end = section.address + section.size;
+    const from = pool ? Math.max(section.address, pool.address) : end;
+    const to = pool ? Math.min(end, pool.address + pool.size) : end;
+    if (to <= from) {
+        return [{ name: section.name, kind, bytes: section.size }];
+    }
+    return [
+        { name: section.name, kind, bytes: from - section.address },
+        { name: MEMORY_POOL_AREA, kind: MemoryAreaKind.POOL, bytes: to - from },
+        { name: section.name, kind, bytes: end - to },
+    ].filter(area => area.bytes > 0);
+}
+
 function trim(name: string, suffix: string): string {
     return name.replace(/^_/, '').slice(0, -suffix.length);
 }

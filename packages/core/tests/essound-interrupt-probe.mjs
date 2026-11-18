@@ -1,13 +1,6 @@
-// Checks that the expansion-port interrupt the emulator raises for ESSound's
-// init command is the one the V810 would raise by itself.
-//
-// The core has no way to raise an interrupt, so the worker performs the entry
-// sequence by hand (see serviceGamePakInterrupts). This runs that sequence
-// against the real core and then lets the CPU carry on, which is the only way
-// to tell a correct entry from a plausible-looking one: a wrong PSW or vector
-// shows up as the CPU executing somewhere else.
-//
-// Usage: node scripts/essound-interrupt-probe.mjs
+// checks that the expansion-port interrupt raised for ESSound's init command matches the V810's own. The
+// core cannot raise interrupts, so the worker does the entry by hand (serviceGamePakInterrupts); letting the
+// CPU carry on shows a wrong PSW or vector. Usage: node tests/essound-interrupt-probe.mjs
 import fs from 'fs';
 import { createRequire } from 'node:module';
 
@@ -24,7 +17,7 @@ const check = (label, actual, expected) => {
 const hex = value => `0x${(value >>> 0).toString(16).toUpperCase().padStart(8, '0')}`;
 
 const corePath = new URL(
-    '../wasm/core.wasm',
+    '../wasm/shrooms/core.wasm',
     import.meta.url
 );
 const { instance } = await WebAssembly.instantiate(fs.readFileSync(corePath), {
@@ -33,9 +26,8 @@ const { instance } = await WebAssembly.instantiate(fs.readFileSync(corePath), {
 const E = instance.exports;
 E._initialize();
 
-// A ROM of nothing but `jr 0`, so that wherever the CPU ends up it spins there
-// rather than running off into whatever follows. Format IV: opcode 0b101010 in
-// the top six bits, a displacement of zero.
+// a ROM of nothing but `jr 0`, so the CPU spins wherever it ends up. Format IV: opcode 0b101010 in the top
+// six bits, a displacement of zero
 const ROM_BYTES = 1024;
 const rom = new Uint8Array(ROM_BYTES);
 for (let at = 0; at < ROM_BYTES; at += 4) {
@@ -70,7 +62,7 @@ const EIPSW = vb.VbSystemRegister.EIPSW;
 const ECR = vb.VbSystemRegister.ECR;
 const sr = index => E.vbGetSystemRegister(sim, index) >>> 0;
 
-/** The worker's serviceGamePakInterrupts, for one simulation. */
+// the worker's serviceGamePakInterrupts, for one simulation
 function raiseGamePakInterrupt() {
     const level = vb.VbInterrupt.CRO;
     const psw = sr(PSW);
@@ -98,7 +90,7 @@ check('the ROM is running', before !== 0, true);
 
 console.log('\nA pulse the CPU can take');
 {
-    // Interrupts enabled, nothing being handled, no level masked.
+    // interrupts enabled, nothing being handled, no level masked
     E.vbSetSystemRegister(sim, PSW, 0);
     const psw = sr(PSW);
     const pc = E.vbGetProgramCounter(sim) >>> 0;
@@ -113,7 +105,6 @@ console.log('\nA pulse the CPU can take');
     check('PSW masks this level and below',
         (sr(PSW) & vb.VB_PSW_INTERRUPT_LEVEL_MASK) >>> vb.VB_PSW_INTERRUPT_LEVEL_SHIFT, 3);
 
-    // The point of the exercise: the CPU carries on from the vector.
     run(2000);
     const after = E.vbGetProgramCounter(sim) >>> 0;
     console.log(`  now spinning at ${hex(after)}`);
@@ -130,7 +121,7 @@ console.log('\nA pulse the CPU cannot take yet');
     check('in an NMI: held', raiseGamePakInterrupt(), false);
     E.vbSetSystemRegister(sim, PSW, 4 << vb.VB_PSW_INTERRUPT_LEVEL_SHIFT);
     check('level masked out: held', raiseGamePakInterrupt(), false);
-    // Level 2 is exactly at the mask, which the hardware still accepts.
+    // level 2 is exactly at the mask, which the hardware still accepts
     E.vbSetSystemRegister(sim, PSW, 2 << vb.VB_PSW_INTERRUPT_LEVEL_SHIFT);
     check('level equal to the mask: taken', raiseGamePakInterrupt(), true);
 }

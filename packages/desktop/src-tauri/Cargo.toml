@@ -1,0 +1,90 @@
+[package]
+name = "VUEPort"
+version = "1.0.0"
+edition = "2021"
+description = "A modern, accurate and easy-to-use Virtual Boy Emulator"
+publish = false
+
+# The webview inspector in a build that is not a debug build.
+#
+# `tauri dev` always has one, because a debug build carries it; a bundled
+# application deliberately does not, and should not — a released emulator has
+# no business shipping an inspector. This feature is how a *diagnostic* bundle
+# gets one anyway, for the faults that only appear once the thing is packaged:
+#
+#     yarn workspace vueport-desktop bundle --devtools
+#
+# See `scripts/bundle.mjs`, which is what passes it through and says loudly
+# that the artifact it produced is not one to hand to anybody.
+[features]
+devtools = ["tauri/devtools"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The Rumble Pack speaks over a serial port, and no system webview offers Web
+# Serial — WKWebView has no `navigator.serial` at all — so the port is opened
+# here and the bytes handed to the page.
+serialport = "4"
+rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] }
+# A file's bytes reach the shell as a raw request body, which leaves nowhere
+# for its path but a header — and a header carries ASCII. See `storage_write`.
+percent-encoding = "2"
+# Replacing the application with a newer one. Desktop only in Tauri's own
+# template, where the same crate is also built for phones; this one is never
+# built for anything else, so there is nothing to guard it with.
+tauri-plugin-updater = "2"
+# A build that may not install updates (no code signing, see `src/update.rs`)
+# still reads the release manifest, and does so itself, as the plugin refuses
+# one without an archive for this platform. All three are already in the tree
+# through the plugin; the features match its own, so nothing new is built.
+reqwest = { version = "0.13", default-features = false, features = ["json"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+semver = "1"
+# Opening a link in the browser somebody actually uses. A webview drops a
+# `target="_blank"` on the floor, so every link out of VUEPort is handed to the
+# system instead — see `src/external.rs`. Used as a library rather than
+# registered as a plugin: the page asks the shell, as it does for everything.
+tauri-plugin-opener = "2"
+# The Probe mode's token — see `src/probe.rs`. Already in the tree through
+# Tauri; named here because the token is this crate's own business.
+getrandom = "0.2"
+# `VUEPort --probe-cli`, the binary as a client of the running app — see
+# `src/probe.rs`. Both already in the tree through Tauri.
+base64 = "0.22"
+dirs = "6"
+# This computer's addresses in the local network, for sharing a game with a
+# headset there — see `src/lan_share.rs`. Lists every interface's, which the
+# standard library cannot.
+if-addrs = "0.15"
+# Game pads, read here rather than through the webview: WebKit's Gamepad API
+# does not see every pad Chrome does, and SDL brings the controller database,
+# the drivers and the rumble no webview has — see `src/gamepad.rs`. Built from
+# source and linked in statically, so there is no library to ship beside the
+# application; the build needs cmake for it.
+sdl3-sys = { version = "0.7", default-features = false, features = ["build-from-source-static"] }
+
+# macOS draws the three window buttons itself and moves them back to where it
+# would put them on a standard title bar whenever the title bar is laid out
+# again — see `src/titlebar.rs`, which puts them back where the page's own
+# strip wants them.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSView", "NSButton", "NSControl", "NSResponder"] }
+
+# SDL is only asked for its game pads, which on Linux come through udev and
+# evdev. Its video and audio drivers would pull X11, Wayland and ALSA headers
+# into the build for nothing, and without video SDL's CMake wants to be told
+# that a build without windows is meant.
+[target.'cfg(target_os = "linux")'.dependencies]
+sdl3-sys = { version = "0.7", default-features = false, features = ["no-sdl-video", "no-sdl-audio", "sdl-unix-console-build"] }
+
+# Tests only. The path guards are the security-relevant part of this shell, and
+# checking them means building a folder that looks like a project and trying to
+# escape it.
+[dev-dependencies]
+tempfile = "3"

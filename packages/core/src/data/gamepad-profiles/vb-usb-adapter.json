@@ -1,0 +1,25 @@
+{
+    "format": "vueport-gamepad-profile",
+    "version": 1,
+    "id": "vb-usb-adapter",
+    "name": "VB USB Adapter",
+    "family": "generic",
+    "match": { "name": "VB USB Adapter", "mapping": "" },
+    "deadZone": 0.5,
+    "buttons": {
+        "lUp": [{ "kind": "button", "index": 0 }],
+        "lDown": [{ "kind": "button", "index": 1 }],
+        "lLeft": [{ "kind": "button", "index": 2 }],
+        "lRight": [{ "kind": "button", "index": 3 }],
+        "a": [{ "kind": "button", "index": 4 }],
+        "b": [{ "kind": "button", "index": 5 }],
+        "start": [{ "kind": "button", "index": 6 }],
+        "select": [{ "kind": "button", "index": 7 }],
+        "rTrigger": [{ "kind": "button", "index": 8 }],
+        "lTrigger": [{ "kind": "button", "index": 9 }],
+        "rUp": [{ "kind": "button", "index": 10 }],
+        "rRight": [{ "kind": "button", "index": 11 }],
+        "rDown": [{ "kind": "button", "index": 12 }],
+        "rLeft": [{ "kind": "button", "index": 13 }]
+    }
+}

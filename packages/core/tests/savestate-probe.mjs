@@ -1,14 +1,8 @@
-// Probe: is a Shrooms-VB sim state a plain relocatable blob?
-// If yes, save states are a memcpy.
-//
-// NOTE: this probe attaches only a cart ROM, so its pointer scan finds only the
-// cart ROM pointer. A simulation with cart RAM and a sample buffer attached
-// embeds three pointers (cart RAM at 0, cart ROM at 4, samples at 1876044).
-// See scripts/savestate-restore-probe.mjs for the full picture and for the
-// cross-simulation restore that save state files actually perform.
+// is a Shrooms-VB sim state a plain relocatable blob, so save states are a memcpy? Only a cart ROM is attached here;
+// with cart RAM and a sample buffer the state embeds three pointers, see tests/savestate-restore-probe.mjs
 import fs from 'fs';
 
-const path = '../wasm/core.wasm';
+const path = new URL('../wasm/shrooms/core.wasm', import.meta.url);
 const wasm = await WebAssembly.instantiate(fs.readFileSync(path), {
     env: { emscripten_notify_memory_growth: () => { mem = null; } }
 });
@@ -23,7 +17,7 @@ const size = E.vbSizeOf();
 console.log('vbSizeOf() =', size, 'bytes (', (size / 1024).toFixed(1), 'KiB )');
 console.log('PointerSize() =', E.PointerSize());
 
-// Build a minimal 1 MiB cart: mostly zeros, infinite-loop at the reset vector.
+// a minimal 1 MiB cart: mostly zeros, infinite loop at the reset vector
 const romLen = 1 << 20;
 const romPtr = E.Realloc(0, romLen);
 new Uint8Array(E.memory.buffer, romPtr, romLen).fill(0);
@@ -37,7 +31,7 @@ console.log('CreateSim() ->', sim);
 E.vbSetCartROM(sim, romPtr, romLen);
 E.vbReset(sim);
 
-// Emulate helper: Emulate(pointersPtr, count, clocksPtr)
+// Emulate(pointersPtr, count, clocksPtr)
 const simsPtr = E.Realloc(0, 8);
 const clocksPtr = E.Realloc(0, 4);
 mem = null;
@@ -58,19 +52,16 @@ function fingerprint() {
     return JSON.stringify({ pc: E.vbGetProgramCounter(sim), regs });
 }
 
-// t=1000: snapshot
 run(1000);
 const snapshot = bytes(sim, size);
 const fpAtSnapshot = fingerprint();
 console.log('\nsnapshot taken at PC =', E.vbGetProgramCounter(sim).toString(16));
 
-// run further, record where we land
 run(50000);
 const fpAfter = fingerprint();
 const wramAfter = bytes(sim, size); // whole struct incl. embedded WRAM/VRAM
 console.log('after +50000 clocks, PC =', E.vbGetProgramCounter(sim).toString(16));
 
-// restore and replay
 new Uint8Array(E.memory.buffer, sim, size).set(snapshot);
 mem = null;
 const fpRestored = fingerprint();
@@ -87,7 +78,7 @@ console.log('\n=== RESULT ===');
 console.log('register fingerprint matches after replay:', fpReplay === fpAfter);
 console.log('FULL state blob byte-identical after replay:', identical);
 
-// Look for embedded absolute pointers (would need fixup on cross-session restore)
+// embedded absolute pointers would need fixing up on a cross-session restore
 const view = new DataView(snapshot.buffer);
 const hits = [];
 for (let off = 0; off + 4 <= size; off += 4) {

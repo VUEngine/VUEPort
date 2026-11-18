@@ -1,10 +1,9 @@
 import React, { PropsWithChildren } from 'react';
 import { clamp } from './Utils';
-import AdvancedSelect, { AdvancedSelectOption } from './AdvancedSelect';
-import { BasicSelectOption } from './BasicSelect';
 import HContainer from './HContainer';
 import Input from './Input';
 import { useKit } from './KitContext';
+import Select, { SelectOption } from './Select';
 
 interface RangeProps {
     min: number
@@ -13,7 +12,7 @@ interface RangeProps {
     value: number
     clearable?: boolean
     disabled?: boolean
-    options?: BasicSelectOption[]
+    options?: SelectOption[]
     setValue: (value: number) => void
     width?: string | number
     selectWidth?: number
@@ -23,15 +22,6 @@ interface RangeProps {
 export default function Range(props: PropsWithChildren<RangeProps>): React.JSX.Element {
     const { setCommandsEnabled } = useKit();
     const { min, max, step, value, clearable, disabled, options, setValue, width, selectWidth, containerStyle } = props;
-
-    let inputWidth = 32;
-    if (!Number.isInteger(step)) {
-        inputWidth = 52;
-    } else if (max >= 1000) {
-        inputWidth = 48;
-    } else if (max >= 100) {
-        inputWidth = 40;
-    }
 
     const onChange = (val: string) => {
         const v = !val
@@ -46,12 +36,25 @@ export default function Range(props: PropsWithChildren<RangeProps>): React.JSX.E
 
     const handleOnBlur = () => setCommandsEnabled(true);
 
+    // 0-100, for `--range-fill`, which paints the filled part of the track (see the input[type="range"] rules in
+    // emulator-widget.css)
+    const fill = clamp(Math.ceil(100 / (max - min) * ((value ?? max) - min)), 0, 100);
+
+    // tick marks only where the step is coarse enough to count by eye. `--range-steps` is the number of intervals,
+    // the CSS draws a notch at the end of each
+    const segments = step && step > 1 ? (max - min) / step : 0;
+    const showTicks = false; // Number.isInteger(segments) && segments >= 2 && segments <= 40;
+
     return (
         <HContainer alignItems="center" style={{ ...(containerStyle ?? {}), width }}>
             <input
                 type="range"
-                className={`value-${clamp(Math.ceil(100 / (max - min) * ((value ?? max) - min)), 0, 100)}`}
-                style={{ flexGrow: 1 }}
+                className={`value-${fill}${showTicks ? ' has-steps' : ''}`}
+                style={{
+                    flexGrow: 1,
+                    '--range-fill': `${fill}%`,
+                    ...(showTicks ? { '--range-steps': segments } : {}),
+                } as React.CSSProperties}
                 min={min}
                 max={max}
                 step={step}
@@ -63,19 +66,18 @@ export default function Range(props: PropsWithChildren<RangeProps>): React.JSX.E
             />
             {
                 options
-                    ? <AdvancedSelect
-                        options={options.map(o => ({
-                            ...o,
-                            value: o.value?.toString(),
-                        })) as AdvancedSelectOption[]}
-                        defaultValue={value?.toString() ?? max?.toString()}
-                        onChange={opts => onChange(opts[0])}
-                        width={selectWidth}
+                    ? <Select
+                        options={options}
+                        value={String(value ?? max)}
+                        onChange={onChange}
                         disabled={disabled}
+                        style={selectWidth ? { width: selectWidth } : undefined}
                     />
                     : <Input
                         type="number"
-                        style={{ minWidth: inputWidth, width: inputWidth }}
+                        // the slider's echo, which gamepad navigation skips
+                        className='vp-range-value'
+                        style={{ minWidth: 64, width: 64 }}
                         value={value ?? max}
                         setValue={setValue}
                         min={min}
